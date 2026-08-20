@@ -1,0 +1,13 @@
+{
+  "name": "daily-tick-tests",
+  "private": true,
+  "description": "開發用測試（正式 App 本身零依賴）",
+  "scripts": {
+    "logic": "node logic.test.js",
+    "ui": "node ui.test.mjs",
+    "sync": "node sync.test.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}

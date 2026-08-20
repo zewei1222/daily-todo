@@ -1,0 +1,89 @@
+/* ==========================================================================
+   tokens.css — 唯一的視覺數值來源
+   其餘 CSS 只能引用這些變數，禁止硬編碼色值 / 圓角 / 間距 / 動畫時間。
+
+   規範：純色深色模式。全域純黑背景、純色深紫模態、高對比深色卡片。
+   禁止：漸層、透明度（rgba）、blur、模糊陰影、任何形式的邊框描邊。
+   版面一律以純色色塊切割，不靠線條。
+   ========================================================================== */
+:root {
+  color-scheme: dark;
+
+  /* ---- 色彩（全部不透明實色） ---- */
+  --c-bg:           #000000;   /* 全局背景 */
+  --c-modal:        #5E35B1;   /* 模態視窗主色塊 */
+  --c-surface:      #1C1C1E;   /* 卡片與區塊群組 */
+  --c-surface-2:    #2C2C2E;   /* 控制項底色：未選中的圓框、列值、按壓態 */
+  --c-ink:          #FFFFFF;   /* 主文字 */
+  --c-ink-2:        #A09FA5;   /* 次要文字（單一明度，不再混用其他灰） */
+  --c-accent:       #9E7BFF;   /* 強調色：選中、亮點、輸入框 */
+  --c-on-accent:    #000000;   /* 疊在強調色上的文字 */
+  --c-on-modal:     #FFFFFF;   /* 疊在模態主色上的文字 */
+  --c-hint-accent:  #5E35B1;   /* 強調色底上的提示文字（placeholder） */
+  --c-danger:       #FF453A;
+  --c-danger-2:     #C62A20;   /* 超過刪除門檻 */
+  --c-on-danger:    #FFFFFF;
+
+  /* ---- 圓角（無邊框，形狀靠色塊與圓角） ---- */
+  --r-lg:    24px;   /* 大區塊、彈出視窗 */
+  --r-md:    16px;   /* 卡片、區塊群組 */
+  --r-sm:    12px;   /* 分段按鈕 */
+  --r-pill:  999px;  /* 輸入框、按鈕、圓框 */
+  --r-cell:  3px;    /* 統計格子 */
+
+  /* ---- 間距 ---- */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --grid-gap: 2px;
+
+  /* ---- 字型 ---- */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro TC", "PingFang TC",
+          "Noto Sans TC", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --fs-1: 13px;   /* 註釋、次要資訊：比標題小 1~2 級 */
+  --fs-2: 15px;
+  --fs-3: 17px;   /* 卡片標題 */
+  --fs-4: 20px;
+  --fs-5: 30px;
+  --fw-normal: 500;
+  --fw-bold:   800;
+  --lh:        1.35;
+  --lh-tight:  1.15;
+
+  /* ---- 尺寸 ---- */
+  --header-h:      52px;
+  --tab-h:         56px;
+  --fab-size:      60px;
+  --card-min-h:    60px;
+  --check-size:    26px;
+  --hit-min:       44px;
+  --content-max:   560px;
+  --tab-mark-h:    3px;
+  --input-h:       52px;
+
+  /* ---- 左滑刪除 ---- */
+  --swipe-action-w:      96px;
+  --swipe-open-at:       44px;
+  --swipe-max-extra:     28px;
+  --swipe-tap-slop:      8px;
+  --del-over-scale:      1.14;
+
+  /* ---- 動態 ---- */
+  --dur-fast:   120ms;
+  --dur-mid:    200ms;
+  --dur-slow:   240ms;
+  --ease-out:   cubic-bezier(.2, .8, .3, 1);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+  --press-scale: 0.97;
+
+  /* ---- 執行期由 JS 覆寫（visualViewport） ----
+     --kb-h  鍵盤高度，只用於內容區的底部留白
+     --vv-top 極少數情況 iOS 仍搬動可視區域時的補償量 */
+  --kb-h: 0px;
+  --vv-top: 0px;
+}
