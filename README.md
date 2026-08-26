@@ -111,6 +111,7 @@ test/                 測試（開發用）
   "settings": { "reset_hour": 4 },
   "tasks": [
     { "id": "uuid", "type": "daily", "title": "倒垃圾", "note": "可回收與廚餘分開", "tags": ["家務"],
+      "progress": { "current": 3, "target": 10, "step": 1 },
       "start_date": "2026-08-18", "repeat": { "unit": "week", "interval": 1 },
       "order_index": 1000, "created_at": "...", "deleted_at": null,
       "history": ["2026-08-18"] },
@@ -204,6 +205,21 @@ test/                 測試（開發用）
   面板上的選項也變成「結束編輯」；回到前景會強制退出（狀態不記憶）。
 - 標題列的 `#btn-edit` 仍 `hidden`，`App.toggleEditMode()` 是同一個開關。
 
+### 進度條（日常任務的附加功能）
+
+- 日常任務的新增／編輯 sheet 右下角有一顆同款 ＋（`#sheet-fab`，一般任務不顯示）：**短按或長按都開輪盤**，目前唯一
+  選項「新增進度條」。選了之後在「預定日程」下方出現進度條模塊：目前進度、目標進度、每次增加（預設 1），
+  右上角 − 移除（`confirm`）。
+- **模塊在 sheet 裡就必須填完整**才能建立／儲存（`A.checkProgressInput`）：任一欄空白會提示「補填或按 − 移除」、
+  非整數、負數、目標 < 1、每次增加 < 1、目前 > 目標都會擋下，並把焦點移到第一個有問題的欄位。
+- 資料：`task.progress = { current, target, step }` 或 `null`（只有日常任務有這個欄位）。`normProgress` 把壞資料變
+  `null`，不會弄掉整個任務；`schema_version` 不變。卡片在標籤下方顯示「進度 3 / 10」。
+- ＋ 與輪盤是同一個元件（`main.js` 的 `attachFab`），主畫面與 sheet 各掛一個；位置由 `--fab-bottom` 決定。
+  sheet 裡的 ＋ **固定在畫面底部、不跟 `--kb-h` 浮動**：留白從預估切到實測時 ＋ 會在手指底下位移，長按放手時
+  瀏覽器補送的 click 就落到別的元件上（測試抓到它把類型切成一般）。鍵盤開著時它被蓋住，收鍵盤就看得到。
+  另外長按放手後那一個 click 若落在 FAB 以外，會被整份文件層吞掉一次。
+- 目前只有「設定」這一段：進度值怎麼在清單上增加、跟完成的關係，之後再定。
+
 ### 排序
 
 - `A.sort = { by: 'custom' | 'created' | 'alpha', dir: 'asc' | 'desc' }`，跟篩選一樣是**檢視狀態**，存 `ui_state`，
@@ -229,11 +245,11 @@ v1（只有標題）的資料可以直接讀入與匯入，會自動補上：`no
 ## 測試
 
 ```bash
-node test/logic.test.js          # 純邏輯：日期、週期、連續期數、排序、軟刪除、匯入驗證、遷移、標籤與篩選、排序、搜尋（190 項）
+node test/logic.test.js          # 純邏輯：日期、週期、連續期數、排序、軟刪除、匯入驗證、遷移、標籤與篩選、排序、搜尋、進度條（207 項）
 
 python3 test/serve.py            # 另開一個終端，掛在 /daily-todo/ 路徑
 cd test && npm i                 # 只裝 puppeteer-core，用系統的 google-chrome
-node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋（323 項）
+node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、進度條模塊（346 項）
 node sync.test.mjs               # 用假的 GitHub API 驗證備份流程 F1–F6、E5、軟刪除同步（33 項）
 ```
 

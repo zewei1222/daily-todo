@@ -1406,6 +1406,101 @@ group('N. FAB：短按新增、長按圓弧面板（搜尋 / 編輯順序）');
   await ctx.close();
 }
 
+group('O. 日常任務 sheet 的 ＋：輪盤加入進度條模塊、− 移除、未填完不能儲存');
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(ctx);
+  await page.goto(URL, { waitUntil: 'load' });
+  const toast = () => page.$eval('#toast', t => t.hidden ? null : t.textContent);
+  const sheetFabBox = () => page.$eval('#sheet-fab', el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  const longPressSheetFab = async () => { const b = await sheetFabBox(); await page.touchscreen.touchStart(b.x, b.y); await sleep(700); await page.touchscreen.touchEnd(); await sleep(350); };
+  const setVal = (sel, v) => page.$eval(sel, (i, val) => { i.value = val; i.dispatchEvent(new Event('input', { bubbles: true })); }, v);
+
+  /* 新增日常任務：sheet 右下角有 ＋，一般任務沒有 */
+  await tapEl(page, '#fab'); await sleep(300);
+  const fabGeo = await page.evaluate(() => {
+    const f = document.querySelector('#sheet-fab'), m = document.querySelector('#fab');
+    const r = f.getBoundingClientRect(), rm = m.getBoundingClientRect();
+    /* 固定在畫面底部，不跟 --kb-h 浮動（見 README「進度條」） */
+    return { hidden: f.hidden, w: r.width, sameSize: Math.abs(r.width - rm.width) < 1,
+             nearRight: innerWidth - r.right < 40, atBottom: Math.abs((innerHeight - r.bottom) - 16) < 2,
+             progressHidden: document.querySelector('#group-progress').hidden };
+  });
+  ok('O1 日常任務 sheet 右下角有同款 ＋', !fabGeo.hidden && fabGeo.sameSize && fabGeo.nearRight && fabGeo.atBottom, fabGeo);
+  eq('O1 一開始沒有進度條模塊', fabGeo.progressHidden, true);
+  await tapEl(page, '#seg-type [data-type="general"]'); await sleep(200);
+  eq('O1 切到一般任務 ＋ 隱藏', await page.$eval('#sheet-fab', f => f.hidden), true);
+  await tapEl(page, '#seg-type [data-type="daily"]'); await sleep(200);
+  eq('O1 切回日常 ＋ 出現', await page.$eval('#sheet-fab', f => f.hidden), false);
+
+  /* 長按開輪盤 → 新增進度條 */
+  await longPressSheetFab();
+  eq('O2 長按開輪盤，只有一個選項「新增進度條」', await page.$$eval('#sheet-fab-menu .fab-opt', os => [document.querySelector('#sheet-fab-menu').hidden, os.map(o => o.textContent.trim())]), [false, ['新增進度條']]);
+  await tapEl(page, '#fab-opt-progress'); await sleep(350);
+  const mod = await page.evaluate(() => {
+    const g = document.querySelector('#group-progress'), sched = document.querySelector('#group-schedule');
+    return { hidden: g.hidden, belowSchedule: g.getBoundingClientRect().top >= sched.getBoundingClientRect().bottom,
+             minus: document.querySelector('#btn-progress-remove').textContent, step: document.querySelector('#input-prog-step').value,
+             cur: document.querySelector('#input-prog-cur').value, target: document.querySelector('#input-prog-target').value,
+             menuHidden: document.querySelector('#sheet-fab-menu').hidden };
+  });
+  ok('O2 模塊出現在預定日程下方，右上角有 −，每次增加預設 1，其餘空白',
+     !mod.hidden && mod.belowSchedule && mod.minus === '−' && mod.step === '1' && mod.cur === '' && mod.target === '' && mod.menuHidden, mod);
+  await longPressSheetFab();
+  await tapEl(page, '#fab-opt-progress'); await sleep(350);
+  eq('O2 再選一次：提示已有進度條、欄位不被清掉', [await toast(), await page.$eval('#input-prog-step', i => i.value)], ['已經有進度條了', '1']);
+
+  /* 沒填完不能建立 */
+  await setVal('#input-title', '讀書');
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('O3 未填完：sheet 不關、沒建立', [await page.$eval('#sheet-task', s => s.hidden), await page.evaluate(() => App.activeTasks('daily').length)], [false, 0]);
+  ok('O3 提示補填或移除', /移除進度條/.test(await toast() || ''), await toast());
+  eq('O3 焦點跳到第一個未填欄位', await page.evaluate(() => document.activeElement.id), 'input-prog-cur');
+  await setVal('#input-prog-cur', '3'); await setVal('#input-prog-target', '10'); await setVal('#input-prog-step', '');
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('O3 只缺每次增加也擋下、焦點到該欄', [await page.$eval('#sheet-task', s => s.hidden), await page.evaluate(() => document.activeElement.id)], [false, 'input-prog-step']);
+  await setVal('#input-prog-step', '2'); await setVal('#input-prog-cur', '12');
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('O3 目前超過目標也擋下', [await page.$eval('#sheet-task', s => s.hidden), await toast()], [false, '目前進度不能超過目標進度']);
+
+  /* 填完 → 建立成功，卡片顯示進度 */
+  await setVal('#input-prog-cur', '3');
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('O4 填完可建立', await page.$eval('#sheet-task', s => s.hidden), true);
+  eq('O4 任務帶 progress', await page.evaluate(() => App.activeTasks('daily')[0].progress), { current: 3, target: 10, step: 2 });
+  eq('O4 卡片顯示進度', await page.$eval('#list-daily .card-progress', p => p.hidden ? null : p.textContent), '進度 3 / 10');
+
+  /* 編輯：模塊帶回；− 移除（confirm）→ 儲存後 progress 為 null */
+  await tapEl(page, '#list-daily .row:first-child .card-body'); await sleep(300);
+  eq('O5 編輯時模塊帶回數值', await page.evaluate(() => [document.querySelector('#group-progress').hidden, document.querySelector('#input-prog-cur').value,
+     document.querySelector('#input-prog-target').value, document.querySelector('#input-prog-step').value]), [false, '3', '10', '2']);
+  page.__dialogs.length = 0;
+  await tapEl(page, '#btn-progress-remove'); await sleep(200);
+  ok('O5 − 會跳確認', page.__dialogs.length === 1 && /移除進度條/.test(page.__dialogs[0]), page.__dialogs);
+  eq('O5 確認後模塊消失', await page.$eval('#group-progress', g => g.hidden), true);
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('O5 儲存後 progress 移除、卡片不再顯示', await page.evaluate(() => [App.activeTasks('daily')[0].progress, document.querySelector('#list-daily .card-progress').hidden]), [null, true]);
+
+  /* 沒加模塊照常建立；取消不留殘影 */
+  await tapEl(page, '#fab'); await sleep(300);
+  await longPressSheetFab();
+  await tapEl(page, '#fab-opt-progress'); await sleep(300);
+  await tapEl(page, '#sheet-task [data-act="cancel"]'); await sleep(300);
+  await tapEl(page, '#fab'); await sleep(300);
+  eq('O6 取消後重開 sheet，模塊不會殘留', await page.$eval('#group-progress', g => g.hidden), true);
+  await setVal('#input-title', '無進度');
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('O6 沒有模塊照常建立', await page.evaluate(() => App.activeTasks('daily').map(t => [t.title, t.progress])), [['讀書', null], ['無進度', null]]);
+
+  /* sheet 的 ＋ 短按也開輪盤；關 sheet 時輪盤一起收 */
+  await tapEl(page, '#fab'); await sleep(300);
+  await tapEl(page, '#sheet-fab'); await sleep(350);
+  eq('O7 短按也開輪盤', await page.$eval('#sheet-fab-menu', m => m.hidden), false);
+  await tapEl(page, '#sheet-task [data-act="cancel"]'); await sleep(400);
+  eq('O7 關 sheet 輪盤一起收', await page.$eval('#sheet-fab-menu', m => m.hidden), true);
+  await ctx.close();
+}
+
 group('I. 版面與 tokens');
 {
   const ctx = await browser.createBrowserContext();

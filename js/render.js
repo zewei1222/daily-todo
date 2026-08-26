@@ -94,6 +94,7 @@
     main.appendChild(A.el('span', 'card-title'));
     main.appendChild(A.el('span', 'card-note'));
     main.appendChild(A.el('span', 'card-tags'));
+    main.appendChild(A.el('span', 'card-progress'));
     body.appendChild(main);
     body.appendChild(A.el('span', 'badge'));
     var handle = A.el('span', 'drag-handle', '≡');
@@ -122,6 +123,12 @@
     var tags = (task.tags || []).map(function (g) { return '#' + g; }).join('  ');
     if (tagsEl.textContent !== tags) tagsEl.textContent = tags;
     tagsEl.hidden = !tags;
+
+    var progEl = A.$('.card-progress', row);
+    var prog = task.type === 'daily' && task.progress
+             ? '進度 ' + task.progress.current + ' / ' + task.progress.target : '';
+    if (progEl.textContent !== prog) progEl.textContent = prog;
+    progEl.hidden = !prog;
 
     var done = A.isDone(task);
     card.classList.toggle('is-done', done);

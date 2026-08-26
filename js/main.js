@@ -115,6 +115,7 @@
   }
 
   function closeSheet(el) {
+    if (sheetFab) sheetFab.close();
     dropKeyboard();
     el.classList.remove('is-open');
     var dur = A.token('--dur-mid', 200);
@@ -140,8 +141,34 @@
     A.$('#repeat-summary').textContent = A.repeatLabel(sheetRepeatPreview());
   }
 
+  /* ---- 進度條模塊（只有日常任務有） ---- */
+  var sheetProgress = false;      /* 模塊目前是否在 sheet 裡 */
+
+  function setProgressModule(on, values) {
+    sheetProgress = !!on;
+    var g = A.$('#group-progress');
+    g.hidden = !sheetProgress || sheetType !== 'daily';
+    if (!sheetProgress) return;
+    A.$('#input-prog-cur').value = values && values.current != null ? String(values.current) : '';
+    A.$('#input-prog-target').value = values && values.target != null ? String(values.target) : '';
+    A.$('#input-prog-step').value = values && values.step != null ? String(values.step) : '1';
+  }
+
+  function addProgressModule() {
+    if (sheetProgress) { A.toast('已經有進度條了'); return; }
+    setProgressModule(true, null);
+    var g = A.$('#group-progress');
+    g.scrollIntoView({ block: 'nearest' });
+    A.$('#input-prog-cur').focus();
+  }
+
+  var PROG_FIELD_ID = { current: '#input-prog-cur', target: '#input-prog-target', step: '#input-prog-step' };
+
   function applySheetType() {
     A.$('#group-schedule').hidden = sheetType !== 'daily';
+    A.$('#group-progress').hidden = sheetType !== 'daily' || !sheetProgress;
+    A.$('#sheet-fab').hidden = sheetType !== 'daily';
+    if (sheetType !== 'daily' && sheetFab) sheetFab.close();
     A.$('#sheet-task-title').textContent =
       (editingId ? '編輯' : '新增') + (sheetType === 'daily' ? '日常任務' : '一般任務');
     A.$$('#seg-type button').forEach(function (b) {
@@ -163,6 +190,7 @@
 
     var r = task && task.type === 'daily' ? A.repeatRule(task) : { unit: 'day', interval: 1 };
     sheetUnit = r.unit;
+    setProgressModule(!!(task && task.progress), task ? task.progress : null);
     A.$('#input-interval').value = String(r.interval);
     A.$('#input-start').value = (task && task.start_date) ? task.start_date : A.logicalToday();
 
@@ -188,6 +216,21 @@
   function saveTaskSheet() {
     var fields = collectSheetFields();
     if (!fields.title) { A.toast('請輸入任務標題'); A.$('#input-title').focus(); return; }
+
+    /* 進度條模塊在 sheet 裡就必須填完整，否則不能建立／儲存 */
+    fields.progress = null;
+    if (sheetType === 'daily' && sheetProgress) {
+      var chk = A.checkProgressInput(A.$('#input-prog-cur').value, A.$('#input-prog-target').value,
+                                     A.$('#input-prog-step').value);
+      if (!chk.ok) {
+        A.toast(chk.error, 3200);
+        var bad = A.$(PROG_FIELD_ID[chk.field]);
+        bad.scrollIntoView({ block: 'center' });
+        bad.focus();
+        return;
+      }
+      fields.progress = chk.value;
+    }
 
     if (editingId) {
       var t = A.updateTask(editingId, fields);
@@ -280,42 +323,19 @@
     setQuery('');
   }
 
-  /* ================= FAB：短按新增、長按圓弧面板、編輯模式變 ✓ ================= */
-  var fabMenuOpen = false;
-
-  function openFabMenu() {
-    var menu = A.$('#fab-menu');
-    A.$('#fab-opt-edit-label').textContent = A.mode === 'edit' ? '結束編輯' : '編輯順序';
-    menu.hidden = false;
-    void menu.offsetHeight;
-    menu.classList.add('is-open');
-    fabMenuOpen = true;
-  }
-
-  function closeFabMenu() {
-    if (!fabMenuOpen) return;
-    fabMenuOpen = false;
-    var menu = A.$('#fab-menu');
-    menu.classList.remove('is-open');
-    var dur = A.token('--dur-mid', 200);
-    setTimeout(function () { if (!fabMenuOpen) menu.hidden = true; }, A.reducedMotion() ? 0 : dur);
-  }
-  A.closeFabMenu = closeFabMenu;
-
-  function fabTap() {
-    if (A.mode === 'edit') { setMode('normal'); return; }
-    A.openTaskSheet(null);
-  }
-
-  function wireFab() {
-    var fab = A.$('#fab');
-    var menu = A.$('#fab-menu');
+  /* ================= FAB 元件：短按、長按輪盤、輪盤手勢 =================
+     主畫面的 ＋ 與日常任務 sheet 的 ＋ 共用。
+     handlers: { tap(), option(act), beforeOpen() }；選項用 data-act 區分。 */
+  function attachFab(fab, menu, handlers) {
+    var open = false;
     var press = null;          /* 進行中的按壓 { id, x, y, timer, fired, hover } */
     var longFired = false;     /* 這次按壓已判定為長按（或被取消）：接下來的 click 要吞掉 */
+    var swallowDoc = false;    /* 長按放手後瀏覽器補送的 click 可能落在 FAB 以外（手指滑開了）：整份文件吞一次 */
 
     function optionAt(x, y) {
       var el = document.elementFromPoint(x, y);
-      return el ? el.closest('.fab-opt') : null;
+      var opt = el ? el.closest('.fab-opt') : null;
+      return opt && menu.contains(opt) ? opt : null;
     }
     function insideMenu(x, y) {
       var r = menu.getBoundingClientRect();
@@ -329,10 +349,24 @@
       if (opt) opt.classList.add('is-hover');
       press.hover = opt;
     }
+
+    function openMenu() {
+      if (handlers.beforeOpen) handlers.beforeOpen();
+      menu.hidden = false;
+      void menu.offsetHeight;
+      menu.classList.add('is-open');
+      open = true;
+    }
+    function closeMenu() {
+      if (!open) return;
+      open = false;
+      menu.classList.remove('is-open');
+      var dur = A.token('--dur-mid', 200);
+      setTimeout(function () { if (!open) menu.hidden = true; }, A.reducedMotion() ? 0 : dur);
+    }
     function activate(opt) {
-      closeFabMenu();
-      if (opt.id === 'fab-opt-search') openSearch();
-      else if (opt.id === 'fab-opt-edit') A.toggleEditMode();
+      closeMenu();
+      handlers.option(opt.dataset.act);
     }
 
     function clear() {
@@ -350,7 +384,7 @@
       if (!e.isPrimary || e.button > 0) return;
       clear();
       longFired = false;
-      if (fabMenuOpen) { closeFabMenu(); longFired = true; return; }   /* 面板開著：這一下只是收起 */
+      if (open) { closeMenu(); longFired = true; return; }   /* 面板開著：這一下只是收起 */
       press = { id: e.pointerId, x: e.clientX, y: e.clientY, timer: null, fired: false, hover: null };
       fab.classList.add('is-press');
       try { fab.setPointerCapture(e.pointerId); } catch (err) {}
@@ -360,7 +394,7 @@
         press.timer = null;
         longFired = true;
         fab.classList.remove('is-press');
-        openFabMenu();
+        openMenu();
       }, A.token('--long-press', 450));
     });
     fab.addEventListener('pointermove', function (e) {
@@ -380,30 +414,79 @@
       var p = press;
       clear();
       if (!p.fired) return;
+      /* 放手後瀏覽器若補送 click，會緊接著來；只吞這一小段時間內的，別讓旗標殘留吃掉下一次合法點擊 */
+      swallowDoc = true;
+      setTimeout(function () { swallowDoc = false; }, 100);
       /* 長按不放手、滑出去再放開：放在選項上＝選擇；放在輪盤外＝收起；放在輪盤內空白處＝留著 */
       var opt = optionAt(e.clientX, e.clientY);
       if (opt) activate(opt);
-      else if (!insideMenu(e.clientX, e.clientY)) closeFabMenu();
+      else if (!insideMenu(e.clientX, e.clientY)) closeMenu();
     });
     fab.addEventListener('pointercancel', function () { clear(); longFired = true; });
     fab.addEventListener('mousedown', function (e) { e.preventDefault(); });   /* 不搶焦點 */
     fab.addEventListener('click', function () {
       if (longFired) { longFired = false; return; }
-      fabTap();
+      handlers.tap();
     });
     /* 長按不得跳出系統的複製／選字選單 */
     fab.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     menu.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
-    A.$('#fab-opt-search').addEventListener('click', function () { activate(A.$('#fab-opt-search')); });
-    A.$('#fab-opt-edit').addEventListener('click', function () { activate(A.$('#fab-opt-edit')); });
+    A.$$('.fab-opt', menu).forEach(function (opt) {
+      opt.addEventListener('click', function () { activate(opt); });
+    });
 
     /* 點面板與 FAB 以外的地方就收起 */
     document.addEventListener('pointerdown', function (e) {
-      if (!fabMenuOpen) return;
-      if (e.target.closest('#fab-menu') || e.target.closest('#fab')) return;
-      closeFabMenu();
+      if (!open) return;
+      if (menu.contains(e.target) || fab.contains(e.target)) return;
+      closeMenu();
     }, true);
+    /* 長按放手後的那一個 click：落在 FAB 上由 fab 的 click 處理（longFired）；落在別處就吞掉 */
+    document.addEventListener('click', function (e) {
+      if (!swallowDoc) return;
+      swallowDoc = false;
+      if (fab.contains(e.target)) return;
+      longFired = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
+
+    return { open: openMenu, close: closeMenu, isOpen: function () { return open; } };
+  }
+
+  var mainFab = null, sheetFab = null;
+  A.closeFabMenu = function () {
+    if (mainFab) mainFab.close();
+    if (sheetFab) sheetFab.close();
+  };
+
+  function fabTap() {
+    if (A.mode === 'edit') { setMode('normal'); return; }
+    A.openTaskSheet(null);
+  }
+
+  function wireFab() {
+    mainFab = attachFab(A.$('#fab'), A.$('#fab-menu'), {
+      beforeOpen: function () {
+        A.$('#fab-opt-edit-label').textContent = A.mode === 'edit' ? '結束編輯' : '編輯順序';
+      },
+      tap: fabTap,
+      option: function (act) {
+        if (act === 'search') openSearch();
+        else if (act === 'edit') A.toggleEditMode();
+      }
+    });
+
+    /* 任務 sheet 的 ＋：短按也開輪盤（它沒有別的短按動作） */
+    sheetFab = attachFab(A.$('#sheet-fab'), A.$('#sheet-fab-menu'), {
+      tap: function () { sheetFab.open(); },
+      option: function (act) { if (act === 'progress') addProgressModule(); }
+    });
+    A.$('#btn-progress-remove').addEventListener('click', function () {
+      if (!confirm('移除進度條？已填的數值會一起清掉。')) return;
+      setProgressModule(false);
+    });
   }
 
   /* ================= 排序 Sheet =================

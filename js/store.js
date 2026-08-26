@@ -98,6 +98,8 @@
       t.history = hist;
       t.start_date = deriveStartDate(raw, hist, today);
       t.repeat = normRepeat(raw.repeat);
+      /* 進度條：可選，壞資料一律變 null（不讓一筆爛資料弄掉整個任務） */
+      t.progress = A.normProgress(raw.progress);
     } else {
       t.completed_at = typeof raw.completed_at === 'string' && raw.completed_at
         ? raw.completed_at : null;

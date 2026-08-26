@@ -327,6 +327,16 @@ button {
 }
 .card-note[hidden] { display: none; }
 
+/* 進度：小字次要色，「進度 3 / 10」 */
+.card-progress {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-1);
+  color: var(--c-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.card-progress[hidden] { display: none; }
+
 /* 標籤：主題色小字，「#家務  #健康」 */
 .card-tags {
   display: block;
@@ -442,11 +452,17 @@ button {
 }
 .tab.is-press { color: var(--c-ink); }
 
-/* ---------- FAB ---------- */
+/* ---------- FAB ----------
+   --fab-bottom 決定 FAB 與輪盤的垂直位置：主畫面在 Tab bar 上方；任務 sheet 內的 ＋
+   （#sheet-task 覆寫）固定在畫面底部。刻意不跟 --kb-h 浮動：留白值從預估切到實測時 ＋ 會在
+   手指底下位移，長按放手的 click 就會落到別的元件上。鍵盤開著時它被蓋住，收鍵盤就看得到。 */
+body { --fab-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-4)); }
+#sheet-task { --fab-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom)); }
+
 .fab {
   position: fixed;
   right: var(--sp-4);
-  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-4));
+  bottom: var(--fab-bottom);
   z-index: 20;
   width: var(--fab-size);
   height: var(--fab-size);
@@ -473,7 +489,7 @@ button {
 .fab-menu {
   position: fixed;
   right: calc(var(--sp-4) + var(--fab-size) / 2 - var(--fab-menu-r));
-  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-4) + var(--fab-size) / 2 - var(--fab-menu-r));
+  bottom: calc(var(--fab-bottom) + var(--fab-size) / 2 - var(--fab-menu-r));
   z-index: 19;                              /* 在 FAB 之下、清單之上 */
   width: calc(var(--fab-menu-r) * 2);
   height: calc(var(--fab-menu-r) * 2);
@@ -485,6 +501,9 @@ button {
 }
 .fab-menu[hidden] { display: none; }
 .fab-menu.is-open { transform: scale(1); opacity: 1; }
+/* sheet 內的 ＋ 與輪盤要壓在 sheet（z 40）之上 */
+.fab.is-sheet { z-index: 42; }
+.fab-menu.is-sheet { z-index: 41; }
 
 .fab-menu, .fab-opt, .fab-opt * {
   -webkit-touch-callout: none;
@@ -511,6 +530,7 @@ button {
 }
 .fab-opt.is-a { transform: translate(calc(var(--fab-opt-a-x) * -1), calc(var(--fab-opt-a-y) * -1)); }
 .fab-opt.is-b { transform: translate(calc(var(--fab-opt-b-x) * -1), calc(var(--fab-opt-b-y) * -1)); }
+.fab-opt.is-c { transform: translate(calc(var(--fab-opt-c-x) * -1), calc(var(--fab-opt-c-y) * -1)); }
 .fab-opt-icon {
   display: flex;
   align-items: center;
@@ -966,3 +986,26 @@ textarea.input {
 .sort-option[aria-pressed="true"] { background: var(--c-accent); color: var(--c-on-accent); }
 .sort-option:active { transform: scale(var(--press-scale)); }
 .sort-dir { font-size: var(--fs-1); }
+
+/* 可移除的模塊：標題列右上角一顆 − */
+.group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+.group-head > .group-title { margin-bottom: 0; }
+.btn-minus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--btn-minus-size);
+  height: var(--btn-minus-size);
+  border-radius: var(--r-pill);
+  background: var(--c-surface-2);
+  color: var(--c-ink);
+  font-size: var(--fs-4);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+.btn-minus:active { transform: scale(var(--press-scale)); background: var(--c-danger); color: var(--c-on-danger); }

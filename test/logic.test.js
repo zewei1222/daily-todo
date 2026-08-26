@@ -531,5 +531,41 @@ eq('sortedTasks 一般模式套搜尋', A.sortedTasks('general', 'normal').map(f
 eq('sortedTasks 編輯模式不套搜尋', A.sortedTasks('general', 'edit').length, 3);
 A.query = '';
 
+group('進度條：normProgress / checkProgressInput / 任務欄位');
+eq('normProgress 正常值', A.normProgress({ current: 3, target: 10, step: 2 }), { current: 3, target: 10, step: 2 });
+eq('normProgress 字串數字也吃', A.normProgress({ current: '3', target: '10', step: '1' }), { current: 3, target: 10, step: 1 });
+eq('normProgress 目前超過目標 → 夾到目標', A.normProgress({ current: 15, target: 10, step: 1 }).current, 10);
+eq('normProgress 壞值 → null', [A.normProgress(null), A.normProgress({}), A.normProgress({ current: 0, target: 0, step: 1 }),
+                                A.normProgress({ current: 0, target: 5, step: 0 }), A.normProgress({ current: -1, target: 5, step: 1 }),
+                                A.normProgress({ current: 'x', target: 5, step: 1 })], [null, null, null, null, null, null]);
+eq('checkProgressInput 全空 → 提示補填或移除', A.checkProgressInput('', '', '1').ok, false);
+eq('checkProgressInput 指出第一個空欄位', [A.checkProgressInput('', '10', '1').field, A.checkProgressInput('0', '', '1').field,
+                                          A.checkProgressInput('0', '10', '').field], ['current', 'target', 'step']);
+ok('checkProgressInput 空欄位訊息提到移除', /移除/.test(A.checkProgressInput('', '', '').error));
+eq('checkProgressInput 非整數', A.checkProgressInput('1.5', '10', '1'), { ok: false, field: 'current', error: '進度條只能填整數' });
+eq('checkProgressInput 範圍檢查', [A.checkProgressInput('-1', '10', '1').field, A.checkProgressInput('0', '0', '1').field,
+                                  A.checkProgressInput('0', '10', '0').field, A.checkProgressInput('11', '10', '1').field],
+   ['current', 'target', 'step', 'current']);
+eq('checkProgressInput 通過', A.checkProgressInput(' 2 ', '10', '3'), { ok: true, value: { current: 2, target: 10, step: 3 } });
+
+setState([]);
+var pd = A.addTask('daily', { title: 'p', progress: { current: 1, target: 5, step: 1 } });
+eq('addTask 日常寫入 progress', pd.progress, { current: 1, target: 5, step: 1 });
+var pd2 = A.addTask('daily', { title: 'q' });
+eq('addTask 沒給 → null', pd2.progress, null);
+var pg = A.addTask('general', { title: 'g', progress: { current: 1, target: 5, step: 1 } });
+eq('addTask 一般任務沒有 progress 欄位', 'progress' in pg, false);
+A.updateTask(pd.id, { title: 'p', progress: null });
+eq('updateTask progress:null 移除', A.findTask(pd.id).progress, null);
+A.updateTask(pd.id, { title: 'p', progress: { current: 2, target: 8, step: 2 } });
+eq('updateTask 設定 progress', A.findTask(pd.id).progress, { current: 2, target: 8, step: 2 });
+A.updateTask(pd.id, { title: 'p2' });
+eq('updateTask 未給 progress 時不動它', A.findTask(pd.id).progress, { current: 2, target: 8, step: 2 });
+var ns = A.normalizeState({ tasks: [{ id: 'a', type: 'daily', title: 'a', progress: { current: '1', target: '3', step: '1' } },
+                                    { id: 'b', type: 'daily', title: 'b', progress: 'garbage' },
+                                    { id: 'c', type: 'daily', title: 'c' }] });
+eq('normalizeState 正規化 progress；壞的變 null、沒有也是 null', ns.tasks.map(function (t) { return t.progress; }),
+   [{ current: 1, target: 3, step: 1 }, null, null]);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

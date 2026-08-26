@@ -194,6 +194,39 @@
       });
   };
 
+  /* ================= 進度條（日常任務可選的附加功能） =================
+     task.progress = { current, target, step } 或 null。三個都是整數：
+     target ≥ 1、step ≥ 1、0 ≤ current ≤ target。 */
+  A.normProgress = function (raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    var c = Math.round(Number(raw.current)), t = Math.round(Number(raw.target)), s = Math.round(Number(raw.step));
+    if (!isFinite(c) || !isFinite(t) || !isFinite(s)) return null;
+    if (t < 1 || s < 1 || c < 0) return null;
+    if (c > t) c = t;
+    return { current: c, target: t, step: s };
+  };
+
+  /* 表單輸入檢查：回 { ok, value } 或 { ok:false, field, error }。field 是第一個有問題的欄位。 */
+  A.checkProgressInput = function (current, target, step) {
+    var raw = { current: current, target: target, step: step };
+    var keys = ['current', 'target', 'step'], vals = {};
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i], v = raw[k] == null ? '' : String(raw[k]).trim();
+      if (v === '') {
+        return { ok: false, field: k,
+                 error: '進度條還沒填完：請填目前進度、目標進度與每次增加，或按右上角 − 移除進度條' };
+      }
+      var n = Number(v);
+      if (!isFinite(n) || Math.round(n) !== n) return { ok: false, field: k, error: '進度條只能填整數' };
+      vals[k] = n;
+    }
+    if (vals.current < 0) return { ok: false, field: 'current', error: '目前進度不能是負數' };
+    if (vals.target < 1) return { ok: false, field: 'target', error: '目標進度至少要 1' };
+    if (vals.step < 1) return { ok: false, field: 'step', error: '每次增加至少要 1' };
+    if (vals.current > vals.target) return { ok: false, field: 'current', error: '目前進度不能超過目標進度' };
+    return { ok: true, value: { current: vals.current, target: vals.target, step: vals.step } };
+  };
+
   /* ================= 標籤與篩選 =================
      篩選狀態 A.filter = { tags: [], from: 'YYYY-MM-DD'|null, to: 'YYYY-MM-DD'|null }
      是這台裝置的檢視狀態（存 ui_state），不是資料。
@@ -411,6 +444,7 @@
         interval: Math.max(1, Math.round(Number(fields.interval) || 1))
       };
       t.history = [];
+      t.progress = A.normProgress(fields.progress);
     } else {
       t.completed_at = null;
     }
@@ -430,6 +464,7 @@
         unit: A.REPEAT_UNITS.indexOf(fields.unit) >= 0 ? fields.unit : 'day',
         interval: Math.max(1, Math.round(Number(fields.interval) || 1))
       };
+      if (fields.progress !== undefined) t.progress = A.normProgress(fields.progress);
     }
     return t;
   };
