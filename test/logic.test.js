@@ -479,5 +479,46 @@ eq('sortedTasks 一般分頁日期篩選：完成於 8/15 的繳費',
 A.filter = A.normFilter(null);
 eq('清除篩選後一般分頁回到全部', A.sortedTasks('general', 'normal').map(function (t) { return t.title; }), ['買菜', '繳費']);
 
+group('排序：normSort / compareTasks / sortedTasks');
+eq('normSort 空值＝自訂正序', A.normSort(null), { by: 'custom', dir: 'asc' });
+eq('normSort 壞值退回預設', A.normSort({ by: 'nope', dir: 'sideways' }), { by: 'custom', dir: 'asc' });
+eq('sortIsDefault', [A.sortIsDefault(A.normSort(null)), A.sortIsDefault(A.normSort({ dir: 'desc' })),
+                     A.sortIsDefault(A.normSort({ by: 'alpha' }))], [true, false, false]);
+eq('compareTitles 數字優先且 2 < 10', ['b', '10', 'a', '2'].sort(A.compareTitles), ['2', '10', 'a', 'b']);
+eq('compareTitles 數字 < 英文 < 中文', ['中', 'a', '1'].sort(A.compareTitles), ['1', 'a', '中']);
+setState([
+  Object.assign(general('香蕉', null, 3000), { created_at: '2026-08-03T00:00:00Z' }),
+  Object.assign(general('apple', null, 1000), { created_at: '2026-08-02T00:00:00Z' }),
+  Object.assign(general('10 件事', null, 2000), { created_at: '2026-08-01T00:00:00Z' }),
+  Object.assign(general('2 件事', null, 4000), { created_at: '2026-08-04T00:00:00Z' })
+]);
+var names = function (type, mode) { return A.sortedTasks(type, mode).map(function (t) { return t.title; }); };
+A.sort = A.normSort(null);
+eq('自訂正序＝order_index', names('general', 'normal'), ['apple', '10 件事', '香蕉', '2 件事']);
+A.sort = A.normSort({ by: 'custom', dir: 'desc' });
+eq('自訂倒序', names('general', 'normal'), ['2 件事', '香蕉', '10 件事', 'apple']);
+A.sort = A.normSort({ by: 'created', dir: 'asc' });
+eq('建立日期正序（舊→新）', names('general', 'normal'), ['10 件事', 'apple', '香蕉', '2 件事']);
+A.sort = A.normSort({ by: 'created', dir: 'desc' });
+eq('建立日期倒序（新→舊）', names('general', 'normal'), ['2 件事', '香蕉', 'apple', '10 件事']);
+A.sort = A.normSort({ by: 'alpha', dir: 'asc' });
+eq('字母正序：數字（2<10）→ 英文 → 中文', names('general', 'normal'), ['2 件事', '10 件事', 'apple', '香蕉']);
+A.sort = A.normSort({ by: 'alpha', dir: 'desc' });
+eq('字母倒序', names('general', 'normal'), ['香蕉', 'apple', '10 件事', '2 件事']);
+eq('編輯模式固定自訂正序，不受排序設定影響', names('general', 'edit'), ['apple', '10 件事', '香蕉', '2 件事']);
+setState([
+  Object.assign(daily('b', [], 2000, { start_date: '2020-01-01' }), { created_at: '2026-08-02T00:00:00Z' }),
+  Object.assign(daily('a', [A.logicalToday()], 1000, { start_date: '2020-01-01' }), { created_at: '2026-08-01T00:00:00Z' })
+]);
+A.sort = A.normSort({ by: 'alpha', dir: 'asc' });
+eq('日常分頁：已完成仍沉底，未完成者之間才套排序', names('daily', 'normal'), ['b', 'a']);
+A.sort = A.normSort(null);
+eq('同值以 order_index 決勝（穩定）', (function () {
+  setState([Object.assign(general('x', null, 2000), { created_at: 'same' }),
+            Object.assign(general('y', null, 1000), { created_at: 'same' })]);
+  A.sort = A.normSort({ by: 'created' });
+  var r = names('general', 'normal'); A.sort = A.normSort(null); return r;
+})(), ['y', 'x']);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

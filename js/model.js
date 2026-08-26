@@ -270,20 +270,82 @@
 
   function byOrder(a, b) { return a.order_index - b.order_index; }
 
-  /* 一般模式套用篩選；編輯模式是「管理全部」的視圖，不套篩選（拖曳排序才不會
-     只重排看得到的那幾筆而把索引弄亂）。有日期篩選時，日常分頁改以區間取代
-     「今天到期」的限制。 */
+  /* ================= 排序 =================
+     A.sort = { by: 'custom' | 'created' | 'alpha', dir: 'asc' | 'desc' }，檢視狀態（存 ui_state）。
+     - custom  自訂順序：編輯模式拖曳出來的 order_index
+     - created 建立日期：created_at
+     - alpha   字母：Intl.Collator('zh-Hant', numeric)——數字在前（且 2 < 10）、拉丁字母其次、
+               中文依瀏覽器 ICU 的 zh-Hant 定序（筆畫）。沒有 Intl 就退回字碼比較。
+     同值一律以 order_index 決勝，排序才穩定。 */
+  A.SORT_KEYS = ['custom', 'created', 'alpha'];
+
+  var collator = null;
+  try {
+    if (typeof Intl !== 'undefined' && Intl.Collator) {
+      collator = new Intl.Collator('zh-Hant', { numeric: true, sensitivity: 'base' });
+    }
+  } catch (e) { collator = null; }
+
+  A.normSort = function (raw) {
+    raw = raw && typeof raw === 'object' ? raw : {};
+    return {
+      by: A.SORT_KEYS.indexOf(raw.by) >= 0 ? raw.by : 'custom',
+      dir: raw.dir === 'desc' ? 'desc' : 'asc'
+    };
+  };
+  A.sort = A.normSort(null);
+
+  A.sortIsDefault = function (s) {
+    s = s || A.sort;
+    return s.by === 'custom' && s.dir === 'asc';
+  };
+
+  /* 依首字分三類：數字 → 英文 → 其他（中文等）。ICU 的 zh 定序會把漢字排到拉丁字母前面，
+     Node 與瀏覽器又不一定一致，所以類別先自己定，同類之內才交給 collator。 */
+  function titleClass(s) {
+    var c = String(s).trim().charAt(0);
+    if (!c) return 3;
+    if (/[0-9]/.test(c)) return 0;
+    if (/[A-Za-z]/.test(c)) return 1;
+    return 2;
+  }
+  A.compareTitles = function (a, b) {
+    var ka = titleClass(a), kb = titleClass(b);
+    if (ka !== kb) return ka - kb;
+    if (collator) return collator.compare(a, b);
+    return a < b ? -1 : (a > b ? 1 : 0);
+  };
+
+  A.compareTasks = function (a, b, s) {
+    s = s || A.sort;
+    var c = 0;
+    if (s.by === 'created') {
+      var ca = String(a.created_at || ''), cb = String(b.created_at || '');
+      c = ca < cb ? -1 : (ca > cb ? 1 : 0);              /* ISO 字串可直接比大小 */
+    } else if (s.by === 'alpha') {
+      c = A.compareTitles(a.title, b.title);
+    } else {
+      c = byOrder(a, b);
+    }
+    if (!c) c = byOrder(a, b);
+    return s.dir === 'desc' ? -c : c;
+  };
+
+  /* 一般模式套用篩選與排序；編輯模式是「管理全部」的視圖：不套篩選、固定自訂順序
+     （它就是拖曳編輯 order_index 的地方，換了排序拖曳就沒意義）。
+     有日期篩選時，日常分頁改以區間取代「今天到期」的限制。 */
   A.sortedTasks = function (type, mode) {
     var list = A.activeTasks(type);
     if (mode === 'edit') return list.sort(byOrder);
 
-    var f = A.filter;
+    var f = A.filter, s = A.sort;
+    var cmp = function (a, b) { return A.compareTasks(a, b, s); };
     list = list.filter(function (t) { return A.matchesFilter(t, f); });
-    if (type === 'general') return list.sort(byOrder);
+    if (type === 'general') return list.sort(cmp);
 
     if (!(f.from || f.to)) list = list.filter(A.dueToday);
     return list.sort(function (a, b) {
-      return (A.isDoneToday(a) - A.isDoneToday(b)) || byOrder(a, b);
+      return (A.isDoneToday(a) - A.isDoneToday(b)) || cmp(a, b);
     });
   };
 

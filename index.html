@@ -7,7 +7,7 @@
 <meta name="description" content="極簡重複待辦清單">
 <meta name="theme-color" content="#000000">
 <!-- 版本標記：與 sw.js 的 CACHE_VERSION 同號，App 靠它判斷有沒有新版 -->
-<meta name="app-version" content="3">
+<meta name="app-version" content="4">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -34,6 +34,23 @@
            fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" stroke-linejoin="round">
         <path d="M3.5 4.5h17L14 12.6v6.2l-4 2.7v-8.9z"/>
+      </svg>
+    </button>
+    <!-- 排序：正序＝箭頭朝上、長條由短到長；倒序＝箭頭朝下、長條由長到短（CSS 依 .is-desc 切換） -->
+    <button class="btn-icon" id="btn-sort" type="button" aria-label="排序">
+      <svg class="ico-sort-asc" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor">
+        <path d="M5 2.5 1.6 7.6h2.6V21a.8.8 0 0 0 1.6 0V7.6h2.6z"/>
+        <rect x="10" y="3"    width="4"  height="3" rx=".8"/>
+        <rect x="10" y="8"    width="6"  height="3" rx=".8"/>
+        <rect x="10" y="13"   width="8"  height="3" rx=".8"/>
+        <rect x="10" y="18"   width="10" height="3" rx=".8"/>
+      </svg>
+      <svg class="ico-sort-desc" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor">
+        <path d="M5 21.5 1.6 16.4h2.6V3a.8.8 0 0 1 1.6 0v13.4h2.6z"/>
+        <rect x="10" y="3"    width="10" height="3" rx=".8"/>
+        <rect x="10" y="8"    width="8"  height="3" rx=".8"/>
+        <rect x="10" y="13"   width="6"  height="3" rx=".8"/>
+        <rect x="10" y="18"   width="4"  height="3" rx=".8"/>
       </svg>
     </button>
     <!-- 編輯模式的開關暫時不顯示：功能保留（main.js 仍接線、可呼叫 App.toggleEditMode()），
@@ -187,6 +204,36 @@
 
       <p class="hint">篩選只影響清單顯示，是這台裝置的檢視狀態，不會進備份。編輯模式一律顯示全部。</p>
 
+    </div>
+  </div>
+</div>
+
+<!-- 排序 -->
+<div class="sheet" id="sheet-sort" hidden role="dialog" aria-modal="true">
+  <div class="sheet-head">
+    <button class="btn-text head-l" data-act="close" type="button">返回</button>
+    <span class="sheet-title">排序</span>
+    <span class="head-r"></span>
+  </div>
+  <div class="sheet-body">
+    <div class="sheet-inner">
+      <div class="group">
+        <span class="group-title">排序方式</span>
+        <div class="sort-options" id="sort-options">
+          <button class="sort-option" type="button" data-by="created" aria-pressed="false">
+            <span class="sort-name">建立日期</span><span class="sort-dir"></span>
+          </button>
+          <button class="sort-option" type="button" data-by="alpha" aria-pressed="false">
+            <span class="sort-name">字母</span><span class="sort-dir"></span>
+          </button>
+          <button class="sort-option" type="button" data-by="custom" aria-pressed="true">
+            <span class="sort-name">自訂順序</span><span class="sort-dir">正序 ▲</span>
+          </button>
+        </div>
+        <p class="hint">再點一次目前的排序方式，就切換正序／倒序。「字母」數字在前、英文其次、中文依筆畫；
+          「自訂順序」是編輯模式裡拖曳出來的順序。</p>
+      </div>
+      <p class="hint">排序只影響清單顯示，是這台裝置的檢視狀態，不會進備份。編輯模式一律用自訂順序。</p>
     </div>
   </div>
 </div>

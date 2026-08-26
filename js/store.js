@@ -238,7 +238,8 @@
   /* ---------- ui_state（分頁與捲動位置，SPEC §9.2） ---------- */
   A.defaultUi = function () {
     return { tab: 'daily', scroll: { daily: 0, general: 0, stats: 0 },
-             filter: { tags: [], from: null, to: null } };
+             filter: { tags: [], from: null, to: null },
+             sort: { by: 'custom', dir: 'asc' } };
   };
 
   A.readUiState = function () {
@@ -255,6 +256,7 @@
         });
       }
       if (o && o.filter && A.normFilter) ui.filter = A.normFilter(o.filter);
+      if (o && o.sort && A.normSort) ui.sort = A.normSort(o.sort);
     } catch (e) {}
     return ui;
   };

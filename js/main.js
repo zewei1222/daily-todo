@@ -250,6 +250,26 @@
              to: A.$('#filter-to').value || null };
   }
 
+  /* ================= 排序 Sheet =================
+     排序也是檢視狀態，存 ui_state。點目前的排序方式＝切換正倒序；點別的＝換方式（正序起）。 */
+  function setSort(raw) {
+    A.sort = A.normSort(raw);
+    ui.sort = A.sort;
+    saveUi();
+    A.gestures.closeOpen(false);
+    A.render.chrome();
+    A.render.list('daily', { animate: true });
+    A.render.list('general', { animate: true });
+  }
+
+  function fillSortSheet() {
+    A.$$('#sort-options .sort-option').forEach(function (b) {
+      var on = b.dataset.by === A.sort.by;
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      A.$('.sort-dir', b).textContent = on ? (A.sort.dir === 'desc' ? '倒序 ▼' : '正序 ▲') : '';
+    });
+  }
+
   /* ================= 設定 Sheet ================= */
   function renderThemeUi() {
     var t = A.theme || A.readTheme();
@@ -636,6 +656,24 @@
     });
     A.$('#btn-filter-clear').addEventListener('click', function () { setFilter(null); });
 
+    /* 排序 */
+    var sortSheet = A.$('#sheet-sort');
+    A.$('#btn-sort').addEventListener('click', function () {
+      fillSortSheet();
+      openSheet(sortSheet);
+    });
+    sortSheet.addEventListener('click', function (e) {
+      if (e.target.dataset && e.target.dataset.act === 'close') closeSheet(sortSheet);
+    });
+    A.$('#sort-options').addEventListener('click', function (e) {
+      var b = e.target.closest('.sort-option');
+      if (!b) return;
+      var by = b.dataset.by;
+      if (by === A.sort.by) setSort({ by: by, dir: A.sort.dir === 'asc' ? 'desc' : 'asc' });
+      else setSort({ by: by, dir: 'asc' });
+      fillSortSheet();
+    });
+
     A.$('#fab').addEventListener('click', function () { A.openTaskSheet(null); });
 
     A.$('#btn-clear-done').addEventListener('click', function () {
@@ -808,6 +846,7 @@
     ui = A.readUiState();
     A.tab = ui.tab;
     A.filter = ui.filter;
+    A.sort = ui.sort;
     var mirror = A.readMirror();
     A.state = mirror || A.defaultState();
     lastLogical = A.logicalToday();

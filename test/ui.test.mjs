@@ -1175,6 +1175,84 @@ group('L. 篩選按鍵 / 標籤 / 日期篩選');
   await ctx.close();
 }
 
+group('M. 排序按鍵：建立日期 / 字母 / 自訂，點目前的切換正倒序');
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(ctx);
+  await page.goto(URL, { waitUntil: 'load' });
+
+  const head = await page.evaluate(() => {
+    const f = document.querySelector('#btn-filter').getBoundingClientRect();
+    const s = document.querySelector('#btn-sort');
+    const r = s.getBoundingClientRect();
+    const asc = s.querySelector('.ico-sort-asc'), desc = s.querySelector('.ico-sort-desc');
+    return { rightOfFilter: r.left >= f.right - 1, w: r.width, text: s.textContent.trim(),
+             ascShown: getComputedStyle(asc).display !== 'none', descShown: getComputedStyle(desc).display !== 'none',
+             active: s.classList.contains('is-active') };
+  });
+  ok('M1 排序按鍵在篩選按鍵右邊、圖示無文字', head.rightOfFilter && head.w >= 44 && head.text === '', head);
+  ok('M1 預設顯示正序圖示（箭頭朝上）', head.ascShown && !head.descShown, head);
+  ok('M1 預設排序不標示為啟用', !head.active, head);
+
+  await page.evaluate(() => {
+    const mk = (title, created, order) => { const t = App.addTask('general', { title }); t.created_at = created; t.order_index = order; };
+    mk('香蕉', '2026-08-03T00:00:00Z', 3000);
+    mk('apple', '2026-08-02T00:00:00Z', 1000);
+    mk('10 件事', '2026-08-01T00:00:00Z', 2000);
+    mk('2 件事', '2026-08-04T00:00:00Z', 4000);
+    App.save(); App.render.all({ animate: false });
+  });
+  await tapEl(page, '.tab[data-tab="general"]'); await sleep(250);
+  eq('M2 預設自訂順序', await titles(page, 'general'), ['apple', '10 件事', '香蕉', '2 件事']);
+
+  await tapEl(page, '#btn-sort'); await sleep(300);
+  eq('M3 開啟排序 sheet', await page.$eval('#sheet-sort', s => !s.hidden), true);
+  eq('M3 三個選項、自訂為目前', await page.$$eval('#sort-options .sort-option', bs => bs.map(b => [b.dataset.by, b.getAttribute('aria-pressed')])),
+     [['created', 'false'], ['alpha', 'false'], ['custom', 'true']]);
+  eq('M3 目前選項顯示正序', await page.$eval('#sort-options [data-by="custom"] .sort-dir', d => d.textContent), '正序 ▲');
+
+  /* 點別的 → 換方式（正序起） */
+  await tapEl(page, '#sort-options [data-by="created"]'); await sleep(300);
+  eq('M4 切到建立日期', await page.evaluate(() => App.sort), { by: 'created', dir: 'asc' });
+  eq('M4 選中狀態切換', await page.$$eval('#sort-options .sort-option', bs => bs.map(b => b.getAttribute('aria-pressed'))), ['true', 'false', 'false']);
+  /* 點目前的 → 切換正倒序 */
+  await tapEl(page, '#sort-options [data-by="created"]'); await sleep(300);
+  eq('M4 再點目前的 → 倒序', await page.evaluate(() => App.sort), { by: 'created', dir: 'desc' });
+  eq('M4 選項顯示倒序', await page.$eval('#sort-options [data-by="created"] .sort-dir', d => d.textContent), '倒序 ▼');
+  await tapEl(page, '#sheet-sort [data-act="close"]'); await sleep(300);
+  eq('M4 清單依建立日期倒序', await titles(page, 'general'), ['2 件事', '香蕉', 'apple', '10 件事']);
+  const icons = await page.evaluate(() => {
+    const s = document.querySelector('#btn-sort');
+    return { ascShown: getComputedStyle(s.querySelector('.ico-sort-asc')).display !== 'none',
+             descShown: getComputedStyle(s.querySelector('.ico-sort-desc')).display !== 'none',
+             active: s.classList.contains('is-active'),
+             accent: getComputedStyle(s).color === getComputedStyle(document.querySelector('#fab')).backgroundColor };
+  });
+  ok('M5 倒序時圖示換成箭頭朝下', icons.descShown && !icons.ascShown, icons);
+  ok('M5 非預設排序時按鍵為主題色', icons.active && icons.accent, icons);
+
+  /* 字母：數字優先（2 < 10）、英文、中文 */
+  await page.evaluate(() => { App.sort = App.normSort({ by: 'alpha', dir: 'asc' }); App.render.all({ animate: false }); });
+  eq('M6 字母正序：數字→英文→中文', await titles(page, 'general'), ['2 件事', '10 件事', 'apple', '香蕉']);
+
+  /* 編輯模式固定自訂順序 */
+  await page.evaluate(() => App.toggleEditMode()); await sleep(300);
+  eq('M7 編輯模式不套排序', await titles(page, 'general'), ['apple', '10 件事', '香蕉', '2 件事']);
+  await page.evaluate(() => App.toggleEditMode()); await sleep(300);
+  eq('M7 回一般模式恢復排序', await titles(page, 'general'), ['2 件事', '10 件事', 'apple', '香蕉']);
+
+  /* 用 UI 設定後重載保留；不進 state */
+  await tapEl(page, '#btn-sort'); await sleep(300);
+  await tapEl(page, '#sort-options [data-by="alpha"]'); await sleep(200);     /* 目前是 alpha asc（由 evaluate 設） → 選它＝切倒序 */
+  await tapEl(page, '#sheet-sort [data-act="close"]'); await sleep(300);
+  eq('M8 點目前的字母 → 倒序', await titles(page, 'general'), ['香蕉', 'apple', '10 件事', '2 件事']);
+  await page.goto(URL, { waitUntil: 'load' });
+  eq('M8 重新載入保留排序', await page.evaluate(() => App.sort), { by: 'alpha', dir: 'desc' });
+  eq('M8 排序不進 state', await page.evaluate(() => 'sort' in App.state), false);
+  eq('M8 重載後圖示為倒序', await page.$eval('#btn-sort', s => s.classList.contains('is-desc')), true);
+  await ctx.close();
+}
+
 group('I. 版面與 tokens');
 {
   const ctx = await browser.createBrowserContext();

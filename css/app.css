@@ -108,6 +108,11 @@ button {
 
 .head-group { display: inline-flex; align-items: center; gap: var(--sp-1); }
 
+/* 排序圖示：兩個 SVG 只顯示一個 */
+#btn-sort .ico-sort-desc { display: none; }
+#btn-sort.is-desc .ico-sort-asc { display: none; }
+#btn-sort.is-desc .ico-sort-desc { display: block; }
+
 /* ---------- 篩選提示條（標題列下方，主題色膠囊） ---------- */
 .filter-bar {
   flex: 0 0 auto;
@@ -835,3 +840,27 @@ textarea.input {
 }
 .chip[aria-pressed="true"] { background: var(--c-accent); color: var(--c-on-accent); }
 .chip:active { transform: scale(var(--press-scale)); }
+
+/* 排序面板：整列按鍵，選中為主題色，右側顯示正／倒序 */
+.sort-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.sort-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: var(--hit-min);
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-sm);
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-size: var(--fs-2);
+  font-weight: var(--fw-bold);
+  text-align: left;
+}
+.sort-option[aria-pressed="true"] { background: var(--c-accent); color: var(--c-on-accent); }
+.sort-option:active { transform: scale(var(--press-scale)); }
+.sort-dir { font-size: var(--fs-1); }

@@ -11,6 +11,7 @@
       title:     A.$('#app-title'),
       btnEdit:   A.$('#btn-edit'),
       btnFilter: A.$('#btn-filter'),
+      btnSort:   A.$('#btn-sort'),
       filterBar: A.$('#filter-bar'),
       filterText: A.$('#filter-text'),
       fab:       A.$('#fab'),
@@ -203,12 +204,24 @@
   }
   R.filterSummary = filterSummary;
 
+  var SORT_NAMES = { custom: '自訂順序', created: '建立日期', alpha: '字母' };
+  R.SORT_NAMES = SORT_NAMES;
+  R.sortLabel = function (s) {
+    return SORT_NAMES[s.by] + '・' + (s.dir === 'desc' ? '倒序' : '正序');
+  };
+
   R.chrome = function () {
     els.title.textContent = TITLES[A.tab] || '';
     var onList = A.tab === 'daily' || A.tab === 'general';
     els.btnEdit.classList.toggle('is-invisible', !onList);
     els.btnEdit.textContent = A.mode === 'edit' ? '完成' : '編輯';
     els.fab.hidden = !onList || A.mode === 'edit';
+
+    /* 排序按鍵：圖示顯示正／倒序；非預設排序（自訂正序以外）時變主題色 */
+    els.btnSort.classList.toggle('is-invisible', !onList);
+    els.btnSort.classList.toggle('is-active', !A.sortIsDefault());
+    els.btnSort.classList.toggle('is-desc', A.sort.dir === 'desc');
+    els.btnSort.setAttribute('aria-label', '排序：' + R.sortLabel(A.sort));
 
     var active = A.filterActive();
     els.btnFilter.classList.toggle('is-invisible', !onList);
