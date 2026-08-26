@@ -47,6 +47,10 @@ button {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   color: inherit;
+  /* 長按按鍵不得跳出選字／複製選單（iOS 的 callout） */
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* ---------- Header ---------- */
@@ -456,6 +460,8 @@ button {
   line-height: 1;
 }
 .fab[hidden] { display: none; }
+/* 長按不放後要一路接到 pointermove / pointerup（輪盤手勢），不能讓瀏覽器把觸控接管成捲動 */
+.fab, .fab-menu { touch-action: none; }
 .fab:active, .fab.is-press { transform: scale(var(--press-scale)); }
 .fab .fab-done { display: none; font-size: var(--fs-4); }
 .fab.is-edit .fab-plus { display: none; }
@@ -479,6 +485,12 @@ button {
 }
 .fab-menu[hidden] { display: none; }
 .fab-menu.is-open { transform: scale(1); opacity: 1; }
+
+.fab-menu, .fab-opt, .fab-opt * {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
 
 /* 選項：以面板中心（＝FAB 圓心）為原點，往左上擺 */
 .fab-opt {
@@ -511,6 +523,9 @@ button {
 }
 .fab-opt-icon svg { width: var(--icon-size); height: var(--icon-size); }
 .fab-opt:active .fab-opt-icon { transform: scale(var(--press-scale)); }
+/* 長按不放、手指滑到選項上：亮起（放開即選擇） */
+.fab-opt.is-hover .fab-opt-icon { background: var(--c-ink); color: var(--c-accent); }
+.fab-opt-icon { transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 
 /* ---------- Sheet ---------- */
 .sheet {

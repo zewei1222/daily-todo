@@ -309,56 +309,94 @@
 
   function wireFab() {
     var fab = A.$('#fab');
-    var press = null;          /* 進行中的按壓 { id, x, y, timer } */
-    var longFired = false;     /* 這次按壓已判定為長按：接下來的 click 要吞掉 */
+    var menu = A.$('#fab-menu');
+    var press = null;          /* 進行中的按壓 { id, x, y, timer, fired, hover } */
+    var longFired = false;     /* 這次按壓已判定為長按（或被取消）：接下來的 click 要吞掉 */
+
+    function optionAt(x, y) {
+      var el = document.elementFromPoint(x, y);
+      return el ? el.closest('.fab-opt') : null;
+    }
+    function insideMenu(x, y) {
+      var r = menu.getBoundingClientRect();
+      var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      var dx = x - cx, dy = y - cy;
+      return Math.sqrt(dx * dx + dy * dy) <= r.width / 2;
+    }
+    function setHover(opt) {
+      if (!press || press.hover === opt) return;
+      if (press.hover) press.hover.classList.remove('is-hover');
+      if (opt) opt.classList.add('is-hover');
+      press.hover = opt;
+    }
+    function activate(opt) {
+      closeFabMenu();
+      if (opt.id === 'fab-opt-search') openSearch();
+      else if (opt.id === 'fab-opt-edit') A.toggleEditMode();
+    }
 
     function clear() {
       if (!press) return;
       if (press.timer) clearTimeout(press.timer);
+      setHover(null);
       fab.classList.remove('is-press');
+      try { fab.releasePointerCapture(press.id); } catch (err) {}
       press = null;
     }
 
-    /* 指標事件只負責判定長按；短按動作交給 click（與原本相同時序：
+    /* 指標事件負責判定長按與輪盤手勢；短按動作交給 click（與原本相同時序：
        這樣 openTaskSheet 的 focus 發生在補送的 mousedown 之後，不會被按鍵把焦點搶回去）。 */
     fab.addEventListener('pointerdown', function (e) {
       if (!e.isPrimary || e.button > 0) return;
       clear();
       longFired = false;
       if (fabMenuOpen) { closeFabMenu(); longFired = true; return; }   /* 面板開著：這一下只是收起 */
-      press = { id: e.pointerId, x: e.clientX, y: e.clientY, timer: null };
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY, timer: null, fired: false, hover: null };
       fab.classList.add('is-press');
+      try { fab.setPointerCapture(e.pointerId); } catch (err) {}
       press.timer = setTimeout(function () {
         if (!press) return;
+        press.fired = true;
+        press.timer = null;
         longFired = true;
-        clear();
+        fab.classList.remove('is-press');
         openFabMenu();
       }, A.token('--long-press', 450));
     });
     fab.addEventListener('pointermove', function (e) {
       if (!press || e.pointerId !== press.id) return;
+      if (press.fired) {                          /* 輪盤已開：手指滑到哪個選項就亮哪個 */
+        setHover(optionAt(e.clientX, e.clientY));
+        return;
+      }
       var slop = A.token('--swipe-tap-slop', 8);
       if (Math.abs(e.clientX - press.x) > slop || Math.abs(e.clientY - press.y) > slop) {
         clear();
         longFired = true;          /* 按住後移動：既不是長按也不是短按 */
       }
     });
-    fab.addEventListener('pointerup', clear);
+    fab.addEventListener('pointerup', function (e) {
+      if (!press || e.pointerId !== press.id) return;
+      var p = press;
+      clear();
+      if (!p.fired) return;
+      /* 長按不放手、滑出去再放開：放在選項上＝選擇；放在輪盤外＝收起；放在輪盤內空白處＝留著 */
+      var opt = optionAt(e.clientX, e.clientY);
+      if (opt) activate(opt);
+      else if (!insideMenu(e.clientX, e.clientY)) closeFabMenu();
+    });
     fab.addEventListener('pointercancel', function () { clear(); longFired = true; });
     fab.addEventListener('mousedown', function (e) { e.preventDefault(); });   /* 不搶焦點 */
     fab.addEventListener('click', function () {
       if (longFired) { longFired = false; return; }
       fabTap();
     });
+    /* 長按不得跳出系統的複製／選字選單 */
+    fab.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    menu.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
-    A.$('#fab-opt-search').addEventListener('click', function () {
-      closeFabMenu();
-      openSearch();
-    });
-    A.$('#fab-opt-edit').addEventListener('click', function () {
-      closeFabMenu();
-      A.toggleEditMode();
-    });
+    A.$('#fab-opt-search').addEventListener('click', function () { activate(A.$('#fab-opt-search')); });
+    A.$('#fab-opt-edit').addEventListener('click', function () { activate(A.$('#fab-opt-edit')); });
 
     /* 點面板與 FAB 以外的地方就收起 */
     document.addEventListener('pointerdown', function (e) {

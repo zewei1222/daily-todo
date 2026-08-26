@@ -188,7 +188,12 @@ test/                 測試（開發用）
 ### FAB 與編輯順序模式
 
 - ＋ 用 Pointer Events 自己判定：按下超過 `--long-press`（450ms）且位移在 `--swipe-tap-slop` 內＝長按，開面板並吞掉
-  這次的 click；否則放手即短按＝新增任務。
+  這次的 click；否則放手即短按＝新增任務。短按動作刻意留在 `click` 執行：瀏覽器在 pointerup 後補送的
+  `mousedown` 會把焦點從 sheet 輸入框搶回按鍵，鍵盤留白就會被歸零。
+- **輪盤手勢**：長按不放手，手指滑到選項上該選項會亮起，**放開＝選擇**；滑出輪盤（以 FAB 圓心、`--fab-menu-r`
+  為半徑的圓）外放開＝輪盤消失；放在輪盤內空白處＝留著，之後再點選項或點外面收起。
+- 所有按鍵都設了 `-webkit-touch-callout: none` + `user-select: none`，＋ 與輪盤另外攔了 `contextmenu`：
+  長按不會跳出 iOS 的選字／複製選單。
 - 面板 `#fab-menu` 是一個以 FAB 圓心為圓心、半徑 `--fab-menu-r` 的純色大圓，只有左上那一塊在畫面內；
   以 `transform: scale(0) → 1` + 透明度從圓心向外淡入。沒有半透明遮罩：點面板與 FAB 以外的地方就收起。
   選項位置由 `--fab-opt-a-*` / `--fab-opt-b-*`（相對圓心往左、往上的位移）決定，要加選項就再加一組。
@@ -228,7 +233,7 @@ node test/logic.test.js          # 純邏輯：日期、週期、連續期數、
 
 python3 test/serve.py            # 另開一個終端，掛在 /daily-todo/ 路徑
 cd test && npm i                 # 只裝 puppeteer-core，用系統的 google-chrome
-node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板與搜尋（315 項）
+node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋（323 項）
 node sync.test.mjs               # 用假的 GitHub API 驗證備份流程 F1–F6、E5、軟刪除同步（33 項）
 ```
 

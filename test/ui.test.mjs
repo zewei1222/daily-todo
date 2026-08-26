@@ -1346,6 +1346,54 @@ group('N. FAB：短按新增、長按圓弧面板（搜尋 / 編輯順序）');
   eq('N7 結束後短按又是新增', await (async () => { await tapEl(page, '#fab'); await sleep(300); return page.$eval('#sheet-task', e => !e.hidden); })(), true);
   await tapEl(page, '#sheet-task [data-act="cancel"]'); await sleep(300);
 
+  /* 輪盤手勢：長按不放、滑動、放開 */
+  const dragRelease = async (dx, dy) => {
+    const b0 = await fabBox();
+    await page.touchscreen.touchStart(b0.x, b0.y);
+    await sleep(700);
+    const opened = await page.$eval('#fab-menu', m => !m.hidden);
+    /* 分兩步移動，第一步先讓 hover 生效 */
+    await page.touchscreen.touchMove(b0.x + dx / 2, b0.y + dy / 2);
+    await sleep(60);
+    await page.touchscreen.touchMove(b0.x + dx, b0.y + dy);
+    await sleep(60);
+    const hover = await page.$$eval('#fab-menu .fab-opt.is-hover', hs => hs.map(h => h.id));
+    await page.touchscreen.touchEnd();
+    await sleep(350);
+    return { opened, hover };
+  };
+  /* 選項相對 FAB 圓心的位移直接讀 tokens（輪盤關著時量不到 rect） */
+  const optOffset = async (which) => page.evaluate((w) => {
+    const cs = getComputedStyle(document.documentElement);
+    return { dx: -parseFloat(cs.getPropertyValue('--fab-opt-' + w + '-x')), dy: -parseFloat(cs.getPropertyValue('--fab-opt-' + w + '-y')) };
+  }, which);
+  const menuR = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fab-menu-r')));
+
+  const off = await optOffset('a');
+  const r1 = await dragRelease(off.dx, off.dy);
+  ok('N9 長按不放滑到「搜尋」上會亮起', r1.opened && JSON.stringify(r1.hover) === '["fab-opt-search"]', r1);
+  eq('N9 放開＝選擇：輪盤收起、搜尋列出現', await page.evaluate(() => [document.querySelector('#fab-menu').hidden, document.querySelector('#search-bar').hidden]), [true, false]);
+  await tapEl(page, '#btn-search-close'); await sleep(300);
+
+  const r2 = await dragRelease(-(menuR + 40), 0);          /* 往左滑出輪盤外 */
+  ok('N10 滑出輪盤外放開：輪盤消失', r2.opened && r2.hover.length === 0, r2);
+  eq('N10 輪盤已收起、沒觸發任何選項', await page.evaluate(() => [document.querySelector('#fab-menu').hidden, document.querySelector('#search-bar').hidden, App.mode, document.querySelector('#sheet-task').hidden]), [true, true, 'normal', true]);
+
+  const r3 = await dragRelease(-(menuR * 0.7), menuR * 0.35);       /* 輪盤內、選項以外的空白處（左下） */
+  ok('N11 放在輪盤內空白處：輪盤留著', r3.opened && r3.hover.length === 0 && !(await page.$eval('#fab-menu', m => m.hidden)), r3);
+  await page.touchscreen.tap(20, 300); await sleep(350);
+  eq('N11 點外面才收起', await page.$eval('#fab-menu', m => m.hidden), true);
+
+  eq('N12 ＋ 與輪盤封鎖長按選字／複製', await page.evaluate(() => {
+    const cs = sel => getComputedStyle(document.querySelector(sel));
+    return [cs('#fab').webkitUserSelect || cs('#fab').userSelect, cs('#fab-opt-search .fab-opt-label').webkitUserSelect || cs('#fab-opt-search .fab-opt-label').userSelect,
+            cs('#btn-filter').webkitUserSelect || cs('#btn-filter').userSelect];
+  }), ['none', 'none', 'none']);
+  eq('N12 contextmenu 被攔下', await page.evaluate(() => {
+    const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    return !document.querySelector('#fab').dispatchEvent(ev);
+  }), true);
+
   /* 長按途中移動＝取消 */
   const b = await fabBox();
   await page.touchscreen.touchStart(b.x, b.y);
