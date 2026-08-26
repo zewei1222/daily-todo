@@ -414,5 +414,70 @@ eq('真正空白的本機（0 筆）仍走硬規則拉回',
    A.syncDecision({ tasks: [], updated_at: '2026-08-18T10:00:00Z' },
                   { tasks: [{ deleted_at: null }], updated_at: '2000-01-01T00:00:00Z' }), 'pull');
 
+group('標籤：正規化');
+eq('逗號／全形逗號／頓號／換行分隔、去空白、去開頭 #、去重',
+   A.normTags(' 家務, 健康、#家務 ，, 運動\n讀書 '), ['家務', '健康', '運動', '讀書']);
+eq('陣列輸入', A.normTags(['a', 'a', ' b ', 3, '']), ['a', 'b']);
+eq('非字串／非陣列 → 空', [A.normTags(null), A.normTags(42), A.normTags(undefined)], [[], [], []]);
+eq('上限 10 個', A.normTags('1,2,3,4,5,6,7,8,9,10,11,12').length, 10);
+eq('單一標籤截到 20 字', A.normTags('一二三四五六七八九十一二三四五六七八九十二十一')[0].length, 20);
+setState([]);
+var tg = A.addTask('general', { title: 't', tags: 'x, y' });
+eq('addTask 寫入 tags', tg.tags, ['x', 'y']);
+A.updateTask(tg.id, { title: 't', tags: 'z' });
+eq('updateTask 覆寫 tags', A.findTask(tg.id).tags, ['z']);
+A.updateTask(tg.id, { title: 't2' });
+eq('updateTask 未給 tags 時不動它', A.findTask(tg.id).tags, ['z']);
+var normed = A.normalizeState({ tasks: [{ id: 'a', type: 'general', title: 'a', tags: ['q', 'q', ' r '] },
+                                       { id: 'b', type: 'daily', title: 'b' }] });
+eq('normalizeState 正規化 tags，沒有就空陣列', normed.tasks.map(function (t) { return t.tags; }), [['q', 'r'], []]);
+
+group('篩選：normFilter / allTags / matches');
+eq('normFilter 空值', A.normFilter(null), { tags: [], from: null, to: null });
+eq('normFilter 起迄顛倒會調換', A.normFilter({ from: '2026-08-20', to: '2026-08-10' }),
+   { tags: [], from: '2026-08-10', to: '2026-08-20' });
+eq('normFilter 壞日期丟掉', A.normFilter({ from: '2026-13-40', to: 'x', tags: 'a' }),
+   { tags: ['a'], from: null, to: null });
+eq('filterActive', [A.filterActive(A.normFilter(null)), A.filterActive(A.normFilter({ tags: ['a'] })),
+                    A.filterActive(A.normFilter({ to: '2026-01-01' }))], [false, true, true]);
+
+setState([
+  Object.assign(daily('每日', [], 1000, { start_date: '2026-01-01' }), { tags: ['健康'] }),
+  Object.assign(daily('每週一', [], 2000, { start_date: '2026-08-03', unit: 'week' }), { tags: ['健康'] }),
+  Object.assign(general('買菜', null, 1000), { tags: ['家務'], created_at: '2026-08-10T12:00:00Z' }),
+  Object.assign(general('繳費', '2026-08-15T12:00:00Z', 2000), { tags: [], created_at: '2026-08-01T12:00:00Z' }),
+  Object.assign(general('已刪', null, 3000), { tags: ['不該出現'], deleted_at: '2026-08-01T00:00:00Z' })
+]);
+eq('allTags 只算未刪除者、次數多的在前', A.allTags(), ['健康', '家務']);
+eq('matchesTags 空＝全部', A.matchesTags(A.findTask('繳費'), []), true);
+eq('matchesTags 多選為 OR', [A.matchesTags(A.findTask('買菜'), ['健康', '家務']),
+                             A.matchesTags(A.findTask('繳費'), ['健康', '家務'])], [true, false]);
+
+var wk = A.findTask('每週一');
+eq('dueInRange 區間內沒有到期日', A.dueInRange(wk, '2026-08-04', '2026-08-09'), false);
+eq('dueInRange 區間含到期日 8/10', A.dueInRange(wk, '2026-08-04', '2026-08-10'), true);
+eq('dueInRange 起迄同日＝只看那天', [A.dueInRange(wk, '2026-08-10', '2026-08-10'),
+                                     A.dueInRange(wk, '2026-08-11', '2026-08-11')], [true, false]);
+eq('dueInRange 只填迄日：迄日早於起始日 → 無', A.dueInRange(wk, null, '2026-08-02'), false);
+eq('dueInRange 只填迄日：迄日在起始日之後 → 有', A.dueInRange(wk, null, '2026-08-03'), true);
+eq('dueInRange 只填起日：週期無限延續 → 一律有', A.dueInRange(wk, '2030-01-01', null), true);
+
+eq('generalInRange 看建立日', [A.generalInRange(A.findTask('買菜'), '2026-08-10', '2026-08-10'),
+                               A.generalInRange(A.findTask('買菜'), '2026-08-11', null),
+                               A.generalInRange(A.findTask('買菜'), null, '2026-08-09')], [true, false, false]);
+eq('generalInRange 也看完成日', A.generalInRange(A.findTask('繳費'), '2026-08-15', '2026-08-15'), true);
+
+A.filter = A.normFilter({ tags: ['家務'] });
+eq('sortedTasks 一般模式套標籤篩選（一般分頁）', A.sortedTasks('general', 'normal').map(function (t) { return t.title; }), ['買菜']);
+eq('sortedTasks 編輯模式不套篩選', A.sortedTasks('general', 'edit').map(function (t) { return t.title; }), ['買菜', '繳費']);
+A.filter = A.normFilter({ from: '2026-08-04', to: '2026-08-09' });
+eq('sortedTasks 日期篩選取代「今天到期」：每日有到期、每週一沒有',
+   A.sortedTasks('daily', 'normal').map(function (t) { return t.title; }), ['每日']);
+A.filter = A.normFilter({ from: '2026-08-15', to: '2026-08-15' });
+eq('sortedTasks 一般分頁日期篩選：完成於 8/15 的繳費',
+   A.sortedTasks('general', 'normal').map(function (t) { return t.title; }), ['繳費']);
+A.filter = A.normFilter(null);
+eq('清除篩選後一般分頁回到全部', A.sortedTasks('general', 'normal').map(function (t) { return t.title; }), ['買菜', '繳費']);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

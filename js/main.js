@@ -43,7 +43,11 @@
     saveUi();
   }
 
-  /* ================= 編輯模式 ================= */
+  /* ================= 編輯模式 =================
+     標題列的「編輯」按鍵目前隱藏（位置待定），功能整個保留：
+     任何地方呼叫 A.toggleEditMode() 就能進出編輯模式。 */
+  A.toggleEditMode = function () { setMode(A.mode === 'edit' ? 'normal' : 'edit'); };
+
   function setMode(mode, quiet) {
     A.mode = mode;
     A.gestures.closeOpen(false);
@@ -153,6 +157,7 @@
     A.$('#group-type').hidden = !!task;              /* 既有任務不改類型 */
     input.value = task ? task.title : '';
     A.$('#input-note').value = task ? (task.note || '') : '';
+    A.$('#input-tags').value = task ? (task.tags || []).join(', ') : '';
 
     var r = task && task.type === 'daily' ? A.repeatRule(task) : { unit: 'day', interval: 1 };
     sheetUnit = r.unit;
@@ -171,6 +176,7 @@
     return {
       title: A.$('#input-title').value.trim(),
       note: A.$('#input-note').value.trim(),
+      tags: A.$('#input-tags').value,
       start_date: A.$('#input-start').value || A.logicalToday(),
       unit: sheetUnit,
       interval: Math.min(99, Math.max(1, Math.round(Number(A.$('#input-interval').value) || 1)))
@@ -196,6 +202,52 @@
     A.save();
     closeSheet(A.$('#sheet-task'));
     editingId = null;
+  }
+
+  /* ================= 篩選 Sheet =================
+     篩選是檢視狀態：存在 ui_state（跟分頁與捲動位置一起），不進 state、不進備份。 */
+  function setFilter(raw) {
+    A.filter = A.normFilter(raw);
+    ui.filter = A.filter;
+    saveUi();
+    A.gestures.closeOpen(false);
+    A.render.chrome();
+    A.render.list('daily', { animate: true });
+    A.render.list('general', { animate: true });
+  }
+
+  function fillFilterSheet() {
+    var host = A.$('#filter-tags');
+    var hint = A.$('#filter-tags-hint');
+    host.textContent = '';
+    var tags = A.allTags();
+    tags.forEach(function (g) {
+      var b = A.el('button', 'chip', g);
+      b.type = 'button';
+      b.dataset.tag = g;
+      b.setAttribute('aria-pressed', A.filter.tags.indexOf(g) >= 0 ? 'true' : 'false');
+      host.appendChild(b);
+    });
+    /* 已選但目前沒有任務用的標籤也要列出來，否則無法取消 */
+    A.filter.tags.forEach(function (g) {
+      if (tags.indexOf(g) >= 0) return;
+      var b = A.el('button', 'chip', g);
+      b.type = 'button';
+      b.dataset.tag = g;
+      b.setAttribute('aria-pressed', 'true');
+      host.appendChild(b);
+    });
+    hint.textContent = host.children.length
+      ? '選多個標籤時，符合其中一個就會顯示。'
+      : '還沒有任務有標籤。新增或編輯任務時，在「標籤」欄以逗號分隔填入。';
+    A.$('#filter-from').value = A.filter.from || '';
+    A.$('#filter-to').value = A.filter.to || '';
+  }
+
+  function readFilterDates() {
+    return { tags: A.filter.tags,
+             from: A.$('#filter-from').value || null,
+             to: A.$('#filter-to').value || null };
   }
 
   /* ================= 設定 Sheet ================= */
@@ -548,9 +600,41 @@
       b.addEventListener('click', function () { setTab(b.dataset.tab); });
     });
 
-    A.$('#btn-edit').addEventListener('click', function () {
-      setMode(A.mode === 'edit' ? 'normal' : 'edit');
+    A.$('#btn-edit').addEventListener('click', A.toggleEditMode);
+
+    /* 篩選 */
+    var filterSheet = A.$('#sheet-filter');
+    A.$('#btn-filter').addEventListener('click', function () {
+      fillFilterSheet();
+      openSheet(filterSheet);
     });
+    filterSheet.addEventListener('click', function (e) {
+      if (e.target.dataset && e.target.dataset.act === 'close') closeSheet(filterSheet);
+    });
+    A.$('#filter-tags').addEventListener('click', function (e) {
+      var b = e.target.closest('.chip');
+      if (!b) return;
+      var tags = A.filter.tags.slice();
+      var i = tags.indexOf(b.dataset.tag);
+      if (i >= 0) tags.splice(i, 1); else tags.push(b.dataset.tag);
+      var f = readFilterDates();
+      f.tags = tags;
+      setFilter(f);
+      b.setAttribute('aria-pressed', i >= 0 ? 'false' : 'true');
+    });
+    ['#filter-from', '#filter-to'].forEach(function (sel) {
+      A.$(sel).addEventListener('change', function () {
+        setFilter(readFilterDates());
+        /* normFilter 會把顛倒的起迄調換，寫回欄位讓畫面一致 */
+        A.$('#filter-from').value = A.filter.from || '';
+        A.$('#filter-to').value = A.filter.to || '';
+      });
+    });
+    A.$('#btn-filter-reset').addEventListener('click', function () {
+      setFilter(null);
+      fillFilterSheet();
+    });
+    A.$('#btn-filter-clear').addEventListener('click', function () { setFilter(null); });
 
     A.$('#fab').addEventListener('click', function () { A.openTaskSheet(null); });
 
@@ -723,6 +807,7 @@
     /* 階段一：同步讀 mirror，立刻畫出完整清單 */
     ui = A.readUiState();
     A.tab = ui.tab;
+    A.filter = ui.filter;
     var mirror = A.readMirror();
     A.state = mirror || A.defaultState();
     lastLogical = A.logicalToday();

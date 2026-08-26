@@ -7,7 +7,7 @@
 <meta name="description" content="極簡重複待辦清單">
 <meta name="theme-color" content="#000000">
 <!-- 版本標記：與 sw.js 的 CACHE_VERSION 同號，App 靠它判斷有沒有新版 -->
-<meta name="app-version" content="2">
+<meta name="app-version" content="3">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -28,12 +28,29 @@
 <body>
 
 <header class="app-head">
-  <button class="btn-text head-l" id="btn-edit" type="button">編輯</button>
+  <span class="head-l head-group">
+    <button class="btn-icon" id="btn-filter" type="button" aria-label="篩選" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+           fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.5 4.5h17L14 12.6v6.2l-4 2.7v-8.9z"/>
+      </svg>
+    </button>
+    <!-- 編輯模式的開關暫時不顯示：功能保留（main.js 仍接線、可呼叫 App.toggleEditMode()），
+         之後再決定放哪裡。把 hidden 拿掉就會回到標題列左側。 -->
+    <button class="btn-text" id="btn-edit" type="button" hidden>編輯</button>
+  </span>
   <h1 class="app-title" id="app-title">日常</h1>
   <button class="btn-icon head-r" id="btn-settings" type="button" aria-label="設定">
     ⚙<span class="sync-dot" id="sync-dot" hidden></span>
   </button>
 </header>
+
+<!-- 篩選中的提示條：顯示條件，✕ 一鍵清除 -->
+<div class="filter-bar" id="filter-bar" hidden>
+  <span class="filter-text" id="filter-text"></span>
+  <button class="filter-clear" id="btn-filter-clear" type="button" aria-label="清除篩選">✕</button>
+</div>
 
 <main class="app-main">
 
@@ -88,6 +105,12 @@
         <textarea class="input-pill" id="input-note" rows="2" maxlength="140"
                   autocomplete="off" autocapitalize="sentences"></textarea>
       </div>
+      <div class="hero-field">
+        <label class="hero-label" for="input-tags">標籤</label>
+        <input class="input-pill" id="input-tags" type="text" maxlength="200"
+               autocomplete="off" autocapitalize="none" enterkeyhint="done"
+               placeholder="以逗號分隔，例如：家務, 健康">
+      </div>
     </div>
   </div>
 
@@ -127,6 +150,42 @@
           </span>
         </div>
       </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- 篩選 -->
+<div class="sheet" id="sheet-filter" hidden role="dialog" aria-modal="true">
+  <div class="sheet-head">
+    <button class="btn-text head-l" data-act="close" type="button">返回</button>
+    <span class="sheet-title">篩選</span>
+    <button class="btn-text head-r" id="btn-filter-reset" type="button">清除</button>
+  </div>
+  <div class="sheet-body">
+    <div class="sheet-inner">
+
+      <div class="group">
+        <span class="group-title">標籤</span>
+        <div class="chips" id="filter-tags"></div>
+        <p class="hint" id="filter-tags-hint">選多個標籤時，符合其中一個就會顯示。</p>
+      </div>
+
+      <div class="group">
+        <span class="group-title">日期</span>
+        <div class="group-row">
+          <span class="row-label">起</span>
+          <input class="input is-date" id="filter-from" type="date">
+        </div>
+        <div class="group-row">
+          <span class="row-label">迄</span>
+          <input class="input is-date" id="filter-to" type="date">
+        </div>
+        <p class="hint">只填起日：從那天起；只填迄日：到那天為止；兩者相同：只看那一天。
+          日常任務看到期日是否落在區間內，一般任務看建立日或完成日。</p>
+      </div>
+
+      <p class="hint">篩選只影響清單顯示，是這台裝置的檢視狀態，不會進備份。編輯模式一律顯示全部。</p>
 
     </div>
   </div>

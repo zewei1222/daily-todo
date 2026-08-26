@@ -74,6 +74,9 @@
       type: type,
       title: title,
       note: typeof raw.note === 'string' ? raw.note.trim() : '',
+      /* 標籤：本 App 新增的欄位，舊備份沒有就是空陣列。daily-tick 目前不認得它，
+         由那邊寫回時會被丟掉（見 README「標籤」）。 */
+      tags: A.normTags(raw.tags),
       order_index: isFinite(Number(raw.order_index)) ? Math.round(Number(raw.order_index))
                                                      : (index + 1) * 1000,
       created_at: typeof raw.created_at === 'string' ? raw.created_at : A.nowIso(),
@@ -234,7 +237,8 @@
 
   /* ---------- ui_state（分頁與捲動位置，SPEC §9.2） ---------- */
   A.defaultUi = function () {
-    return { tab: 'daily', scroll: { daily: 0, general: 0, stats: 0 } };
+    return { tab: 'daily', scroll: { daily: 0, general: 0, stats: 0 },
+             filter: { tags: [], from: null, to: null } };
   };
 
   A.readUiState = function () {
@@ -250,6 +254,7 @@
           if (isFinite(v) && v >= 0) ui.scroll[k] = v;
         });
       }
+      if (o && o.filter && A.normFilter) ui.filter = A.normFilter(o.filter);
     } catch (e) {}
     return ui;
   };

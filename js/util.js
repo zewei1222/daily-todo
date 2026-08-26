@@ -84,6 +84,25 @@
     return d.getFullYear() === p[0] && d.getMonth() === p[1] - 1 && d.getDate() === p[2];
   };
 
+  /* ---------- 標籤 ---------- */
+  A.MAX_TAGS = 10;
+  A.MAX_TAG_LEN = 20;
+
+  /* 接受字串（逗號／全形逗號／頓號／換行分隔）或陣列；去空白、去開頭 #、去重、限量 */
+  A.normTags = function (raw) {
+    var list = Array.isArray(raw) ? raw
+             : (typeof raw === 'string' ? raw.split(/[,，、\n]/) : []);
+    var seen = Object.create(null), out = [];
+    list.forEach(function (t) {
+      if (typeof t !== 'string') return;
+      t = t.trim().replace(/^#+/, '').trim().slice(0, A.MAX_TAG_LEN);
+      if (!t || seen[t] || out.length >= A.MAX_TAGS) return;
+      seen[t] = true;
+      out.push(t);
+    });
+    return out;
+  };
+
   /* ---------- 雜項 ---------- */
   A.uuid = function () {
     try {

@@ -87,6 +87,8 @@
   --content-max:   560px;
   --tab-mark-h:    3px;
   --input-h:       52px;
+  --icon-size:     22px;   /* 標題列圖示按鍵內的 SVG */
+  --chip-h:        36px;   /* 篩選面板的標籤選項 */
 
   /* ---- 左滑刪除 ---- */
   --swipe-action-w:      96px;

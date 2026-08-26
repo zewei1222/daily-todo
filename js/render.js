@@ -10,6 +10,9 @@
     els = {
       title:     A.$('#app-title'),
       btnEdit:   A.$('#btn-edit'),
+      btnFilter: A.$('#btn-filter'),
+      filterBar: A.$('#filter-bar'),
+      filterText: A.$('#filter-text'),
       fab:       A.$('#fab'),
       lists:     { daily: A.$('#list-daily'), general: A.$('#list-general') },
       empties:   { daily: A.$('#empty-daily'), general: A.$('#empty-general') },
@@ -88,6 +91,7 @@
     var main = A.el('span', 'card-main');
     main.appendChild(A.el('span', 'card-title'));
     main.appendChild(A.el('span', 'card-note'));
+    main.appendChild(A.el('span', 'card-tags'));
     body.appendChild(main);
     body.appendChild(A.el('span', 'badge'));
     var handle = A.el('span', 'drag-handle', '≡');
@@ -111,6 +115,11 @@
     var note = task.note || '';
     if (noteEl.textContent !== note) noteEl.textContent = note;
     noteEl.hidden = !note;
+
+    var tagsEl = A.$('.card-tags', row);
+    var tags = (task.tags || []).map(function (g) { return '#' + g; }).join('  ');
+    if (tagsEl.textContent !== tags) tagsEl.textContent = tags;
+    tagsEl.hidden = !tags;
 
     var done = A.isDone(task);
     card.classList.toggle('is-done', done);
@@ -165,7 +174,9 @@
     var emptyEl = els.empties[type];
     emptyEl.hidden = tasks.length > 0;
     if (!emptyEl.hidden) {
-      if (type === 'general') {
+      if (A.mode !== 'edit' && A.filterActive() && A.activeTasks(type).length) {
+        emptyEl.textContent = '沒有符合篩選條件的任務。';
+      } else if (type === 'general') {
         emptyEl.textContent = '還沒有一般任務。按右下角的 ＋ 新增。';
       } else if (A.activeTasks('daily').length === 0) {
         emptyEl.textContent = '還沒有日常任務。按右下角的 ＋ 新增。';
@@ -181,12 +192,31 @@
   /* ---------- Header / Tab / FAB ---------- */
   var TITLES = { daily: '日常', general: '一般', stats: '統計' };
 
+  /* 篩選條的文字：「#家務  #健康 ・ 08-01 ～ 08-15」 */
+  function filterSummary(f) {
+    var parts = [];
+    if (f.tags.length) parts.push(f.tags.map(function (g) { return '#' + g; }).join('  '));
+    if (f.from && f.to) parts.push(f.from === f.to ? f.from : f.from + ' ～ ' + f.to);
+    else if (f.from) parts.push(f.from + ' 起');
+    else if (f.to) parts.push('至 ' + f.to);
+    return parts.join(' ・ ');
+  }
+  R.filterSummary = filterSummary;
+
   R.chrome = function () {
     els.title.textContent = TITLES[A.tab] || '';
     var onList = A.tab === 'daily' || A.tab === 'general';
     els.btnEdit.classList.toggle('is-invisible', !onList);
     els.btnEdit.textContent = A.mode === 'edit' ? '完成' : '編輯';
     els.fab.hidden = !onList || A.mode === 'edit';
+
+    var active = A.filterActive();
+    els.btnFilter.classList.toggle('is-invisible', !onList);
+    els.btnFilter.classList.toggle('is-active', active);
+    els.btnFilter.setAttribute('aria-pressed', active ? 'true' : 'false');
+    /* 編輯模式顯示全部、不套篩選，所以篩選條也收起來 */
+    els.filterBar.hidden = !(onList && active && A.mode === 'normal');
+    if (!els.filterBar.hidden) els.filterText.textContent = filterSummary(A.filter);
 
     els.tabs.forEach(function (b) {
       b.setAttribute('aria-selected', b.dataset.tab === A.tab ? 'true' : 'false');

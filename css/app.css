@@ -103,6 +103,49 @@ button {
   font-size: var(--fs-4);
 }
 .btn-icon:active { color: var(--c-ink-2); }
+.btn-icon svg { display: block; width: var(--icon-size); height: var(--icon-size); }
+.btn-icon.is-active { color: var(--c-accent); }
+
+.head-group { display: inline-flex; align-items: center; gap: var(--sp-1); }
+
+/* ---------- 篩選提示條（標題列下方，主題色膠囊） ---------- */
+.filter-bar {
+  flex: 0 0 auto;
+  align-self: center;
+  width: calc(100% - var(--sp-4) * 2);
+  max-width: var(--content-max);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+  padding-left: var(--sp-4);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-1);
+  font-weight: var(--fw-bold);
+}
+.filter-bar[hidden] { display: none; }
+.filter-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filter-clear {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-min);
+  height: var(--hit-min);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-2);
+  font-weight: var(--fw-bold);
+}
+.filter-clear:active { color: var(--c-modal); }
 
 .sync-dot {
   position: absolute;
@@ -241,6 +284,17 @@ button {
   overflow-wrap: anywhere;
 }
 .card-note[hidden] { display: none; }
+
+/* 標籤：主題色小字，「#家務  #健康」 */
+.card-tags {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-1);
+  font-weight: var(--fw-bold);
+  color: var(--c-accent);
+  overflow-wrap: anywhere;
+}
+.card-tags[hidden] { display: none; }
 
 .card.is-done .card-title {
   color: var(--c-ink-2);
@@ -761,3 +815,23 @@ textarea.input {
 .swatch[data-accent="green"]  { background: var(--accent-green); }
 .swatch[data-accent="orange"] { background: var(--accent-orange); }
 .swatch[data-accent="pink"]   { background: var(--accent-pink); }
+
+/* 篩選面板：標籤選項（膠囊，選中切換為主題色） */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--chip-h);
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-pill);
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-size: var(--fs-2);
+  font-weight: var(--fw-bold);
+}
+.chip[aria-pressed="true"] { background: var(--c-accent); color: var(--c-on-accent); }
+.chip:active { transform: scale(var(--press-scale)); }

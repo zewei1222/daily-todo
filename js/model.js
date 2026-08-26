@@ -194,16 +194,96 @@
       });
   };
 
+  /* ================= 標籤與篩選 =================
+     篩選狀態 A.filter = { tags: [], from: 'YYYY-MM-DD'|null, to: 'YYYY-MM-DD'|null }
+     是這台裝置的檢視狀態（存 ui_state），不是資料。
+     - 標籤：選了多個時符合其中一個即顯示（OR）
+     - 日期：只填起日＝從那天起；只填迄日＝到那天為止；兩者相同＝只看那一天
+       日常任務看「到期日」是否落在區間內；一般任務看建立日或完成日 */
+  A.normFilter = function (raw) {
+    raw = raw && typeof raw === 'object' ? raw : {};
+    var f = {
+      tags: A.normTags(raw.tags),
+      from: A.isDateStr(raw.from) ? raw.from : null,
+      to:   A.isDateStr(raw.to) ? raw.to : null
+    };
+    if (f.from && f.to && f.from > f.to) { var x = f.from; f.from = f.to; f.to = x; }
+    return f;
+  };
+  A.filter = A.normFilter(null);
+
+  A.filterActive = function (f) {
+    f = f || A.filter;
+    return !!(f.tags.length || f.from || f.to);
+  };
+
+  /* 所有未刪除任務用過的標籤：使用次數多的在前，同次數依字序 */
+  A.allTags = function () {
+    var count = Object.create(null);
+    A.activeTasks().forEach(function (t) {
+      (t.tags || []).forEach(function (g) { count[g] = (count[g] || 0) + 1; });
+    });
+    return Object.keys(count).sort(function (a, b) {
+      return (count[b] - count[a]) || a.localeCompare(b, 'zh-Hant');
+    });
+  };
+
+  A.matchesTags = function (task, tags) {
+    if (!tags || !tags.length) return true;
+    var own = task.tags || [];
+    return tags.some(function (g) { return own.indexOf(g) >= 0; });
+  };
+
+  /* 日常：區間內是否有到期日。週期無限延續，所以只填起日一律成立；
+     只填迄日則要迄日之前至少到期過一次（＝迄日不早於起始日）。 */
+  A.dueInRange = function (task, from, to) {
+    if (task.type !== 'daily') return false;
+    if (!from && !to) return true;
+    if (!to) return true;
+    var last = A.dueOnOrBefore(task, to);
+    if (!last) return false;
+    return !from || last >= from;
+  };
+
+  function isoToLogical(iso) {
+    if (typeof iso !== 'string') return null;
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? null : A.logicalDate(d, A.resetHour());
+  }
+
+  /* 一般：建立日或完成日落在區間內 */
+  A.generalInRange = function (task, from, to) {
+    if (!from && !to) return true;
+    var ds = [isoToLogical(task.created_at), isoToLogical(task.completed_at)].filter(Boolean);
+    return ds.some(function (d) { return (!from || d >= from) && (!to || d <= to); });
+  };
+
+  A.inDateRange = function (task, from, to) {
+    if (!from && !to) return true;
+    return task.type === 'daily' ? A.dueInRange(task, from, to) : A.generalInRange(task, from, to);
+  };
+
+  A.matchesFilter = function (task, f) {
+    f = f || A.filter;
+    return A.matchesTags(task, f.tags) && A.inDateRange(task, f.from, f.to);
+  };
+
+  function byOrder(a, b) { return a.order_index - b.order_index; }
+
+  /* 一般模式套用篩選；編輯模式是「管理全部」的視圖，不套篩選（拖曳排序才不會
+     只重排看得到的那幾筆而把索引弄亂）。有日期篩選時，日常分頁改以區間取代
+     「今天到期」的限制。 */
   A.sortedTasks = function (type, mode) {
     var list = A.activeTasks(type);
-    if (mode === 'edit') {
-      return list.sort(function (a, b) { return a.order_index - b.order_index; });
-    }
-    if (type === 'general') {
-      return list.sort(function (a, b) { return a.order_index - b.order_index; });
-    }
-    return list.filter(A.dueToday).sort(function (a, b) {
-      return (A.isDoneToday(a) - A.isDoneToday(b)) || (a.order_index - b.order_index);
+    if (mode === 'edit') return list.sort(byOrder);
+
+    var f = A.filter;
+    list = list.filter(function (t) { return A.matchesFilter(t, f); });
+    if (type === 'general') return list.sort(byOrder);
+
+    if (!(f.from || f.to)) list = list.filter(A.dueToday);
+    return list.sort(function (a, b) {
+      return (A.isDoneToday(a) - A.isDoneToday(b)) || byOrder(a, b);
     });
   };
 
@@ -245,6 +325,7 @@
       type: type,
       title: String(fields.title || '').trim(),
       note: String(fields.note || '').trim(),
+      tags: A.normTags(fields.tags),
       order_index: A.nextOrder(type),
       created_at: A.nowIso(),
       deleted_at: null
@@ -268,6 +349,7 @@
     if (!t) return null;
     t.title = String(fields.title || '').trim() || t.title;
     t.note = String(fields.note || '').trim();
+    if (fields.tags !== undefined) t.tags = A.normTags(fields.tags);
     if (t.type === 'daily') {
       if (fields.start_date) t.start_date = fields.start_date;
       t.repeat = {

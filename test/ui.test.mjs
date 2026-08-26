@@ -194,7 +194,7 @@ group('C / 編輯模式');
   eq('C1 中間任務沉底', await titles(page, 'daily'), ['a', 'c', 'b']);
 
   eq('編輯模式前未載入 Sortable', await page.evaluate(() => typeof window.Sortable), 'undefined');
-  await tapEl(page, '#btn-edit');
+  await page.evaluate(() => App.toggleEditMode());
   await sleep(300);
   eq('C2 編輯模式回到原位', await titles(page, 'daily'), ['a', 'b', 'c']);
   eq('C2 仍是已完成樣式', await page.$eval('#list-daily .row:nth-child(2) .card',
@@ -230,7 +230,7 @@ group('C / 編輯模式');
     App.save();
     App.render.list('daily', { animate: false });
   });
-  await tapEl(page, '#btn-edit');
+  await page.evaluate(() => App.toggleEditMode());
   await sleep(300);
   eq('C3 離開編輯模式套用新順序（已完成仍沉底）', await titles(page, 'daily'), ['c', 'a2', 'b']);
   eq('order_index 為 1000 遞增',
@@ -238,7 +238,7 @@ group('C / 編輯模式');
      [1000, 2000, 3000]);
 
   /* J9 從背景回來以一般模式 */
-  await tapEl(page, '#btn-edit');
+  await page.evaluate(() => App.toggleEditMode());
   await sleep(250);
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
@@ -431,13 +431,13 @@ group('註釋 / 日程 / 週期（新功能）');
   await addTask(page, 'daily', '下週才開始', { start_date: '2099-01-01' });
   await sleep(150);
   eq('未到期的不出現在一般模式', await titles(page, 'daily'), ['倒垃圾']);
-  await tapEl(page, '#btn-edit');
+  await page.evaluate(() => App.toggleEditMode());
   await sleep(300);
   eq('編輯模式顯示全部', await titles(page, 'daily'), ['倒垃圾', '下週才開始']);
   ok('編輯模式的標籤顯示週期',
      /^每週[日一二三四五六]$/.test(await page.$eval('#list-daily .row:first-child .badge',
        b => b.textContent)));
-  await tapEl(page, '#btn-edit');
+  await page.evaluate(() => App.toggleEditMode());
   await sleep(300);
 
   /* 改成每週且今天不是到期日 → 從一般模式清單消失 */
@@ -609,7 +609,7 @@ group('軟刪除：SOFT_DELETE_TASK.md 的 16 項驗收');
     App.softDeleteTask(t.id); App.save(); App.render.all({ animate: false });
   });
   await sleep(150);
-  await tapEl(page, '#btn-edit');
+  await page.evaluate(() => App.toggleEditMode());
   await sleep(300);
   eq('[6] 編輯模式不出現已刪除任務', await titles(page, 'daily'), ['拉筋', '早起']);
   await page.evaluate(() => {
@@ -619,7 +619,7 @@ group('軟刪除：SOFT_DELETE_TASK.md 的 16 項驗收');
   });
   await sleep(150);
   eq('[6] 拖曳後順序正常', await titles(page, 'daily'), ['早起', '拉筋']);
-  await tapEl(page, '#btn-edit');
+  await page.evaluate(() => App.toggleEditMode());
   await sleep(300);
 
   /* 7. 匯出檢查 order_index */
@@ -1027,6 +1027,151 @@ group('K. 卡片左右分割 / 外觀與主題色');
       const cs = getComputedStyle(el);
       return !/rgba\((?!0, 0, 0, 0\))/.test(cs.backgroundColor + cs.color);
     })));
+  await ctx.close();
+}
+
+group('L. 篩選按鍵 / 標籤 / 日期篩選');
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(ctx);
+  await page.goto(URL, { waitUntil: 'load' });
+
+  /* 標題列：左側是篩選圖示按鍵，編輯按鍵隱藏但功能保留 */
+  const head = await page.evaluate(() => {
+    const f = document.querySelector('#btn-filter'), e = document.querySelector('#btn-edit');
+    const fr = f.getBoundingClientRect();
+    return { hasSvg: !!f.querySelector('svg'), text: f.textContent.trim(), fx: fr.x, fw: fr.width,
+             editHidden: e.hidden && getComputedStyle(e).display === 'none',
+             toggleFn: typeof App.toggleEditMode };
+  });
+  ok('L1 左上角是圖示篩選按鍵（SVG、無文字）', head.hasSvg && head.text === '' && head.fw >= 44 && head.fx < 40, head);
+  ok('L1 編輯按鍵隱藏', head.editHidden, head);
+  eq('L1 編輯模式功能保留（App.toggleEditMode）', head.toggleFn, 'function');
+  await page.evaluate(() => App.toggleEditMode());
+  await sleep(200);
+  eq('L1 toggleEditMode 進入編輯模式', await page.evaluate(() => App.mode), 'edit');
+  await page.evaluate(() => App.toggleEditMode());
+  await sleep(200);
+  eq('L1 再呼叫回到一般模式', await page.evaluate(() => App.mode), 'normal');
+
+  /* 新增任務 sheet 有標籤欄，會存進 tags 並顯示在卡片上 */
+  await tapEl(page, '#fab'); await sleep(300);
+  await page.$eval('#input-title', i => { i.value = '晨跑'; });
+  await page.$eval('#input-tags', i => { i.value = '健康, 戶外、#健康'; });
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('L2 標籤欄寫入 tags（去重、去 #）', await page.evaluate(() => App.activeTasks('daily')[0].tags), ['健康', '戶外']);
+  eq('L2 卡片顯示標籤', await page.$eval('#list-daily .card-tags', t => t.hidden ? null : t.textContent), '#健康  #戶外');
+  await tapEl(page, '#list-daily .row:first-child .card-body'); await sleep(300);
+  eq('L2 編輯時帶回標籤欄', await page.$eval('#input-tags', i => i.value), '健康, 戶外');
+  await tapEl(page, '#sheet-task [data-act="cancel"]'); await sleep(300);
+
+  await addTask(page, 'daily', '讀書', { tags: '學習' });
+  await addTask(page, 'daily', '無標籤');
+  await addTask(page, 'general', '買菜', { tags: '家務' });
+  await addTask(page, 'general', '繳費');
+  eq('L2 無標籤的卡片不顯示標籤列', await page.$eval('#list-daily .row:nth-child(3) .card-tags', t => t.hidden), true);
+
+  /* 篩選 sheet：標籤 chips */
+  await tapEl(page, '#btn-filter'); await sleep(300);
+  eq('L3 開啟篩選 sheet', await page.$eval('#sheet-filter', s => !s.hidden), true);
+  eq('L3 列出所有用過的標籤', await page.$$eval('#filter-tags .chip', cs => cs.map(c => c.textContent).sort()),
+     ['家務', '學習', '戶外', '健康'].sort());
+  await tapEl(page, '#filter-tags .chip[data-tag="健康"]'); await sleep(300);
+  eq('L3 chip 選中', await page.$eval('#filter-tags .chip[data-tag="健康"]', c => c.getAttribute('aria-pressed')), 'true');
+  await tapEl(page, '#sheet-filter [data-act="close"]'); await sleep(300);
+  eq('L3 日常分頁只剩有該標籤的任務', await titles(page, 'daily'), ['晨跑']);
+  eq('L3 篩選條顯示條件', await page.evaluate(() => document.querySelector('#filter-bar').hidden ? null
+     : document.querySelector('#filter-text').textContent), '#健康');
+  eq('L3 篩選按鍵呈啟用態', await page.$eval('#btn-filter', b => [b.classList.contains('is-active'), b.getAttribute('aria-pressed')]), [true, 'true']);
+  eq('L3 篩選按鍵顏色為主題色', await page.evaluate(() =>
+     getComputedStyle(document.querySelector('#btn-filter')).color === getComputedStyle(document.querySelector('#fab')).backgroundColor), true);
+
+  /* 多選＝OR；一般分頁同時受影響 */
+  await tapEl(page, '#btn-filter'); await sleep(300);
+  await tapEl(page, '#filter-tags .chip[data-tag="家務"]'); await sleep(200);
+  await tapEl(page, '#sheet-filter [data-act="close"]'); await sleep(300);
+  eq('L4 多選為 OR（日常）', await titles(page, 'daily'), ['晨跑']);
+  await tapEl(page, '.tab[data-tab="general"]'); await sleep(250);
+  eq('L4 一般分頁也套用', await titles(page, 'general'), ['買菜']);
+  eq('L4 空狀態訊息（無符合者時）', await page.evaluate(() => {
+    App.filter = App.normFilter({ tags: ['不存在'] }); App.render.list('general', { animate: false });
+    return document.querySelector('#empty-general').hidden ? null : document.querySelector('#empty-general').textContent;
+  }), '沒有符合篩選條件的任務。');
+
+  /* 編輯模式顯示全部，篩選條收起 */
+  await page.evaluate(() => { App.filter = App.normFilter({ tags: ['家務'] }); App.render.all({ animate: false }); });
+  await page.evaluate(() => App.toggleEditMode()); await sleep(300);
+  eq('L5 編輯模式不套篩選', await titles(page, 'general'), ['買菜', '繳費']);
+  eq('L5 編輯模式收起篩選條', await page.$eval('#filter-bar', b => b.hidden), true);
+  await page.evaluate(() => App.toggleEditMode()); await sleep(300);
+  eq('L5 回到一般模式恢復篩選', await titles(page, 'general'), ['買菜']);
+
+  /* ✕ 一鍵清除 */
+  await tapEl(page, '#btn-filter-clear'); await sleep(300);
+  eq('L6 清除後全部顯示', await titles(page, 'general'), ['買菜', '繳費']);
+  eq('L6 篩選條隱藏、按鍵回到一般態', await page.evaluate(() =>
+     [document.querySelector('#filter-bar').hidden, document.querySelector('#btn-filter').classList.contains('is-active')]), [true, false]);
+
+  /* 日期篩選：一般任務看建立日／完成日 */
+  const today = await page.evaluate(() => App.logicalToday());
+  const back = n => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+  await page.evaluate((d5, d20) => {
+    const a = App.activeTasks('general').find(t => t.title === '買菜'); a.created_at = d5 + 'T12:00:00';
+    const b = App.activeTasks('general').find(t => t.title === '繳費'); b.created_at = d20 + 'T12:00:00';
+    App.save(); App.render.all({ animate: false });
+  }, back(5), back(20));
+  await tapEl(page, '#btn-filter'); await sleep(300);
+  await page.$eval('#filter-from', (i, v) => { i.value = v; i.dispatchEvent(new Event('change', { bubbles: true })); }, back(10));
+  await sleep(200);
+  eq('L7 只填起日：從那天起', await page.evaluate(() => App.filter), { tags: [], from: back(10), to: null });
+  await tapEl(page, '#sheet-filter [data-act="close"]'); await sleep(300);
+  eq('L7 一般分頁：建立日在起日之後者', await titles(page, 'general'), ['買菜']);
+  eq('L7 篩選條文字', await page.$eval('#filter-text', t => t.textContent), back(10) + ' 起');
+
+  await tapEl(page, '#btn-filter'); await sleep(300);
+  await page.$eval('#filter-from', i => { i.value = ''; i.dispatchEvent(new Event('change', { bubbles: true })); });
+  await page.$eval('#filter-to', (i, v) => { i.value = v; i.dispatchEvent(new Event('change', { bubbles: true })); }, back(10));
+  await sleep(200);
+  await tapEl(page, '#sheet-filter [data-act="close"]'); await sleep(300);
+  eq('L7 只填迄日：到那天為止', await titles(page, 'general'), ['繳費']);
+  eq('L7 篩選條文字（迄）', await page.$eval('#filter-text', t => t.textContent), '至 ' + back(10));
+
+  /* 起迄顛倒自動調換；同日＝只看那天 */
+  await tapEl(page, '#btn-filter'); await sleep(300);
+  await page.$eval('#filter-from', (i, v) => { i.value = v; i.dispatchEvent(new Event('change', { bubbles: true })); }, back(3));
+  await sleep(200);
+  eq('L8 起迄顛倒自動調換', await page.evaluate(() => [App.filter.from, App.filter.to]), [back(10), back(3)]);
+  eq('L8 欄位跟著調換', await page.evaluate(() => [document.querySelector('#filter-from').value, document.querySelector('#filter-to').value]), [back(10), back(3)]);
+  await page.$eval('#filter-from', (i, v) => { i.value = v; i.dispatchEvent(new Event('change', { bubbles: true })); }, back(5));
+  await page.$eval('#filter-to', (i, v) => { i.value = v; i.dispatchEvent(new Event('change', { bubbles: true })); }, back(5));
+  await sleep(200);
+  await tapEl(page, '#sheet-filter [data-act="close"]'); await sleep(300);
+  eq('L8 同日只看那天：建立於該日的買菜', await titles(page, 'general'), ['買菜']);
+  eq('L8 篩選條同日只顯示一個日期', await page.$eval('#filter-text', t => t.textContent), back(5));
+
+  /* 日常分頁：日期篩選改看「區間內是否到期」，取代今天到期 */
+  await tapEl(page, '.tab[data-tab="daily"]'); await sleep(250);
+  await page.evaluate((d5) => {
+    const t = App.activeTasks('daily').find(x => x.title === '讀書');
+    t.start_date = d5; t.repeat = { unit: 'week', interval: 1 };        /* 每週，起於 5 天前 → 今天不到期 */
+    App.save(); App.render.all({ animate: false });
+  }, back(5));
+  eq('L9 只看 5 天前那一天：只有那天到期的每週任務（起始日是今天的任務不到期）', await titles(page, 'daily'), ['讀書']);
+  await page.evaluate((d6, d0) => { App.filter = App.normFilter({ from: d6, to: d0 }); App.render.all({ animate: false }); }, back(6), today);
+  eq('L9 區間 6 天前～今天：全部都有到期日（含今天不到期的每週任務）', await titles(page, 'daily'), ['晨跑', '讀書', '無標籤']);
+  await page.evaluate((d0, d1) => { App.filter = App.normFilter({ from: d0, to: d1 }); App.render.all({ animate: false }); }, today, back(-1));
+  eq('L9 區間今天～明天：每週任務下次到期在後天 → 不出現', await titles(page, 'daily'), ['晨跑', '無標籤']);
+
+  /* 篩選是檢視狀態：重新載入保留、不進 state */
+  await page.goto(URL, { waitUntil: 'load' });
+  /* L9 直接改 App.filter 不經 UI，不會持久化；重載後回到 L8 用 UI 設定的最後一個值 */
+  eq('L10 重新載入保留（UI 設定的）篩選', await page.evaluate(() => App.filter), { tags: [], from: back(5), to: back(5) });
+  eq('L10 篩選條在重載後仍顯示', await page.$eval('#filter-bar', b => b.hidden), false);
+  eq('L10 篩選不進 state', await page.evaluate(() => 'filter' in App.state), false);
+  await tapEl(page, '#btn-filter'); await sleep(300);
+  await tapEl(page, '#btn-filter-reset'); await sleep(300);
+  eq('L10 「清除」按鍵清空', await page.evaluate(() => App.filter), { tags: [], from: null, to: null });
+  eq('L10 清除後日期欄位空白', await page.evaluate(() => [document.querySelector('#filter-from').value, document.querySelector('#filter-to').value]), ['', '']);
   await ctx.close();
 }
 
