@@ -7,7 +7,7 @@
 <meta name="description" content="極簡重複待辦清單">
 <meta name="theme-color" content="#000000">
 <!-- 版本標記：與 sw.js 的 CACHE_VERSION 同號，App 靠它判斷有沒有新版 -->
-<meta name="app-version" content="4">
+<meta name="app-version" content="5">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -63,6 +63,18 @@
   </button>
 </header>
 
+<!-- 搜尋列：由 FAB 長按面板的「搜尋任務」打開，依任務名稱即時過濾 -->
+<div class="search-bar" id="search-bar" hidden>
+  <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+       fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+    <circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/>
+  </svg>
+  <input class="search-input" id="input-search" type="search" maxlength="80"
+         autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search"
+         placeholder="搜尋任務名稱" aria-label="搜尋任務名稱">
+  <button class="filter-clear" id="btn-search-close" type="button" aria-label="關閉搜尋">✕</button>
+</div>
+
 <!-- 篩選中的提示條：顯示條件，✕ 一鍵清除 -->
 <div class="filter-bar" id="filter-bar" hidden>
   <span class="filter-text" id="filter-text"></span>
@@ -94,7 +106,32 @@
 
 </main>
 
-<button class="fab" id="fab" type="button" aria-label="新增任務">＋</button>
+<!-- FAB：短按新增；長按以圓心向外淡入圓弧面板（#fab-menu）；編輯順序模式時變成 ✓ 結束編輯 -->
+<button class="fab" id="fab" type="button" aria-label="新增任務（長按開選單）">
+  <span class="fab-plus" aria-hidden="true">＋</span>
+  <span class="fab-done" aria-hidden="true">✓</span>
+</button>
+
+<div class="fab-menu" id="fab-menu" hidden>
+  <button class="fab-opt is-a" id="fab-opt-search" type="button">
+    <span class="fab-opt-icon">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+           fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/>
+      </svg>
+    </span>
+    <span class="fab-opt-label">搜尋任務</span>
+  </button>
+  <button class="fab-opt is-b" id="fab-opt-edit" type="button">
+    <span class="fab-opt-icon">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+           fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </span>
+    <span class="fab-opt-label" id="fab-opt-edit-label">編輯順序</span>
+  </button>
+</div>
 
 <nav class="tab-bar" role="tablist">
   <button class="tab" role="tab" data-tab="daily" aria-selected="true" type="button">日常</button>

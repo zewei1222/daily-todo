@@ -151,9 +151,11 @@
     var task = A.findTask(row.dataset.id);
     if (!task) return;
 
-    /* 左側色塊：切換完成（編輯模式下停用，不開 Modal 也不切換） */
+    /* 編輯順序模式：只能拖曳把手排序，點卡片任何位置都不切換完成、也不開編輯 */
+    if (A.mode === 'edit') return;
+
+    /* 左側色塊：切換完成 */
     if (target.closest('.card-side')) {
-      if (A.mode === 'edit') return;
       A.toggle(task);
       A.render.list(task.type, { animate: true });
       if (A.tab === 'stats') A.render.stats();
@@ -161,7 +163,7 @@
       return;
     }
 
-    /* 右側：編輯任務（一般與編輯模式皆然） */
+    /* 右側：編輯任務 */
     if (A.openTaskSheet) A.openTaskSheet(task);
   }
 

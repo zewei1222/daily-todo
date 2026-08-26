@@ -35,6 +35,7 @@
     A.tab = tab;
     ui.tab = tab;
     if (A.mode === 'edit') setMode('normal', true);
+    if (A.closeFabMenu) A.closeFabMenu();
     A.gestures.closeOpen(false);
     A.render.chrome();
     if (tab === 'stats') A.render.stats();
@@ -50,6 +51,7 @@
 
   function setMode(mode, quiet) {
     A.mode = mode;
+    if (A.closeFabMenu) A.closeFabMenu();
     A.gestures.closeOpen(false);
     A.render.chrome();
     if (!quiet) {
@@ -248,6 +250,122 @@
     return { tags: A.filter.tags,
              from: A.$('#filter-from').value || null,
              to: A.$('#filter-to').value || null };
+  }
+
+  /* ================= 搜尋列 =================
+     由 FAB 長按面板打開；關鍵字是檢視狀態（ui_state），重載後仍在則搜尋列跟著出現。 */
+  function setQuery(raw) {
+    A.query = A.normQuery(raw);
+    ui.query = A.query;
+    saveUi();
+    A.render.chrome();
+    A.render.list('daily', { animate: true });
+    A.render.list('general', { animate: true });
+  }
+
+  function openSearch() {
+    A.searchOpen = true;
+    if (A.mode === 'edit') setMode('normal');
+    A.render.chrome();
+    var input = A.$('#input-search');
+    input.value = A.query;
+    input.focus();
+  }
+
+  function closeSearch() {
+    A.searchOpen = false;
+    var input = A.$('#input-search');
+    if (document.activeElement === input) input.blur();
+    input.value = '';
+    setQuery('');
+  }
+
+  /* ================= FAB：短按新增、長按圓弧面板、編輯模式變 ✓ ================= */
+  var fabMenuOpen = false;
+
+  function openFabMenu() {
+    var menu = A.$('#fab-menu');
+    A.$('#fab-opt-edit-label').textContent = A.mode === 'edit' ? '結束編輯' : '編輯順序';
+    menu.hidden = false;
+    void menu.offsetHeight;
+    menu.classList.add('is-open');
+    fabMenuOpen = true;
+  }
+
+  function closeFabMenu() {
+    if (!fabMenuOpen) return;
+    fabMenuOpen = false;
+    var menu = A.$('#fab-menu');
+    menu.classList.remove('is-open');
+    var dur = A.token('--dur-mid', 200);
+    setTimeout(function () { if (!fabMenuOpen) menu.hidden = true; }, A.reducedMotion() ? 0 : dur);
+  }
+  A.closeFabMenu = closeFabMenu;
+
+  function fabTap() {
+    if (A.mode === 'edit') { setMode('normal'); return; }
+    A.openTaskSheet(null);
+  }
+
+  function wireFab() {
+    var fab = A.$('#fab');
+    var press = null;          /* 進行中的按壓 { id, x, y, timer } */
+    var longFired = false;     /* 這次按壓已判定為長按：接下來的 click 要吞掉 */
+
+    function clear() {
+      if (!press) return;
+      if (press.timer) clearTimeout(press.timer);
+      fab.classList.remove('is-press');
+      press = null;
+    }
+
+    /* 指標事件只負責判定長按；短按動作交給 click（與原本相同時序：
+       這樣 openTaskSheet 的 focus 發生在補送的 mousedown 之後，不會被按鍵把焦點搶回去）。 */
+    fab.addEventListener('pointerdown', function (e) {
+      if (!e.isPrimary || e.button > 0) return;
+      clear();
+      longFired = false;
+      if (fabMenuOpen) { closeFabMenu(); longFired = true; return; }   /* 面板開著：這一下只是收起 */
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY, timer: null };
+      fab.classList.add('is-press');
+      press.timer = setTimeout(function () {
+        if (!press) return;
+        longFired = true;
+        clear();
+        openFabMenu();
+      }, A.token('--long-press', 450));
+    });
+    fab.addEventListener('pointermove', function (e) {
+      if (!press || e.pointerId !== press.id) return;
+      var slop = A.token('--swipe-tap-slop', 8);
+      if (Math.abs(e.clientX - press.x) > slop || Math.abs(e.clientY - press.y) > slop) {
+        clear();
+        longFired = true;          /* 按住後移動：既不是長按也不是短按 */
+      }
+    });
+    fab.addEventListener('pointerup', clear);
+    fab.addEventListener('pointercancel', function () { clear(); longFired = true; });
+    fab.addEventListener('mousedown', function (e) { e.preventDefault(); });   /* 不搶焦點 */
+    fab.addEventListener('click', function () {
+      if (longFired) { longFired = false; return; }
+      fabTap();
+    });
+
+    A.$('#fab-opt-search').addEventListener('click', function () {
+      closeFabMenu();
+      openSearch();
+    });
+    A.$('#fab-opt-edit').addEventListener('click', function () {
+      closeFabMenu();
+      A.toggleEditMode();
+    });
+
+    /* 點面板與 FAB 以外的地方就收起 */
+    document.addEventListener('pointerdown', function (e) {
+      if (!fabMenuOpen) return;
+      if (e.target.closest('#fab-menu') || e.target.closest('#fab')) return;
+      closeFabMenu();
+    }, true);
   }
 
   /* ================= 排序 Sheet =================
@@ -674,7 +792,14 @@
       fillSortSheet();
     });
 
-    A.$('#fab').addEventListener('click', function () { A.openTaskSheet(null); });
+    wireFab();
+
+    /* 搜尋列 */
+    A.$('#input-search').addEventListener('input', function (e) { setQuery(e.target.value); });
+    A.$('#input-search').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === 'Escape') e.target.blur();
+    });
+    A.$('#btn-search-close').addEventListener('click', closeSearch);
 
     A.$('#btn-clear-done').addEventListener('click', function () {
       if (!A.hasCompletedGeneral()) return;
@@ -847,6 +972,9 @@
     A.tab = ui.tab;
     A.filter = ui.filter;
     A.sort = ui.sort;
+    A.query = ui.query;
+    A.searchOpen = !!ui.query;
+    A.$('#input-search').value = A.query;      /* 重載後搜尋列連關鍵字一起回來 */
     var mirror = A.readMirror();
     A.state = mirror || A.defaultState();
     lastLogical = A.logicalToday();

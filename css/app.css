@@ -113,6 +113,39 @@ button {
 #btn-sort.is-desc .ico-sort-asc { display: none; }
 #btn-sort.is-desc .ico-sort-desc { display: block; }
 
+/* ---------- 搜尋列（標題列下方，主題色膠囊 + 輸入框） ---------- */
+.search-bar {
+  flex: 0 0 auto;
+  align-self: center;
+  width: calc(100% - var(--sp-4) * 2);
+  max-width: var(--content-max);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  padding-left: var(--sp-4);
+  min-height: var(--hit-min);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  border-radius: var(--r-pill);
+}
+.search-bar[hidden] { display: none; }
+.search-icon { flex: 0 0 auto; width: var(--icon-size); height: var(--icon-size); }
+.search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--hit-min);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  font-size: var(--fs-2);
+  font-weight: var(--fw-bold);
+  appearance: none;
+  -webkit-appearance: none;
+}
+.search-input::placeholder { color: var(--c-hint-accent); }
+.search-input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.search-bar .filter-clear:active { color: var(--c-modal); }
+
 /* ---------- 篩選提示條（標題列下方，主題色膠囊） ---------- */
 .filter-bar {
   flex: 0 0 auto;
@@ -423,7 +456,61 @@ button {
   line-height: 1;
 }
 .fab[hidden] { display: none; }
-.fab:active { transform: scale(var(--press-scale)); }
+.fab:active, .fab.is-press { transform: scale(var(--press-scale)); }
+.fab .fab-done { display: none; font-size: var(--fs-4); }
+.fab.is-edit .fab-plus { display: none; }
+.fab.is-edit .fab-done { display: block; }
+
+/* ---------- FAB 長按圓弧面板 ----------
+   一個以 FAB 圓心為圓心的大圓（純色卡片底），只有左上那一塊在畫面內；
+   從圓心 scale(0)+透明 → 全尺寸，看起來就是從圓心向外淡入的圓弧。 */
+.fab-menu {
+  position: fixed;
+  right: calc(var(--sp-4) + var(--fab-size) / 2 - var(--fab-menu-r));
+  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-4) + var(--fab-size) / 2 - var(--fab-menu-r));
+  z-index: 19;                              /* 在 FAB 之下、清單之上 */
+  width: calc(var(--fab-menu-r) * 2);
+  height: calc(var(--fab-menu-r) * 2);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  transform: scale(0);
+  opacity: 0;
+  transition: transform var(--dur-mid) var(--ease-out), opacity var(--dur-mid) var(--ease-out);
+}
+.fab-menu[hidden] { display: none; }
+.fab-menu.is-open { transform: scale(1); opacity: 1; }
+
+/* 選項：以面板中心（＝FAB 圓心）為原點，往左上擺 */
+.fab-opt {
+  position: absolute;
+  left: var(--fab-menu-r);
+  top: var(--fab-menu-r);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  width: calc(var(--fab-opt-size) + var(--sp-8));
+  margin-left: calc((var(--fab-opt-size) + var(--sp-8)) / -2);
+  margin-top: calc(var(--fab-opt-size) / -2);
+  color: var(--c-ink);
+  font-size: var(--fs-1);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+.fab-opt.is-a { transform: translate(calc(var(--fab-opt-a-x) * -1), calc(var(--fab-opt-a-y) * -1)); }
+.fab-opt.is-b { transform: translate(calc(var(--fab-opt-b-x) * -1), calc(var(--fab-opt-b-y) * -1)); }
+.fab-opt-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--fab-opt-size);
+  height: var(--fab-opt-size);
+  border-radius: var(--r-pill);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+}
+.fab-opt-icon svg { width: var(--icon-size); height: var(--icon-size); }
+.fab-opt:active .fab-opt-icon { transform: scale(var(--press-scale)); }
 
 /* ---------- Sheet ---------- */
 .sheet {

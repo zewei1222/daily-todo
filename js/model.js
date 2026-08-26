@@ -268,6 +268,18 @@
     return A.matchesTags(task, f.tags) && A.inDateRange(task, f.from, f.to);
   };
 
+  /* ---- 搜尋：任務名稱包含關鍵字（不分大小寫）。檢視狀態，存 ui_state。 ---- */
+  A.normQuery = function (raw) {
+    return typeof raw === 'string' ? raw.trim().slice(0, 80) : '';
+  };
+  A.query = '';
+
+  A.matchesQuery = function (task, q) {
+    q = q === undefined ? A.query : q;
+    if (!q) return true;
+    return String(task.title || '').toLowerCase().indexOf(q.toLowerCase()) >= 0;
+  };
+
   function byOrder(a, b) { return a.order_index - b.order_index; }
 
   /* ================= 排序 =================
@@ -338,9 +350,9 @@
     var list = A.activeTasks(type);
     if (mode === 'edit') return list.sort(byOrder);
 
-    var f = A.filter, s = A.sort;
+    var f = A.filter, s = A.sort, q = A.query;
     var cmp = function (a, b) { return A.compareTasks(a, b, s); };
-    list = list.filter(function (t) { return A.matchesFilter(t, f); });
+    list = list.filter(function (t) { return A.matchesFilter(t, f) && A.matchesQuery(t, q); });
     if (type === 'general') return list.sort(cmp);
 
     if (!(f.from || f.to)) list = list.filter(A.dueToday);

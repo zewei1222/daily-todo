@@ -199,18 +199,26 @@ group('C / 編輯模式');
   eq('C2 編輯模式回到原位', await titles(page, 'daily'), ['a', 'b', 'c']);
   eq('C2 仍是已完成樣式', await page.$eval('#list-daily .row:nth-child(2) .card',
      c => c.classList.contains('is-done')), true);
-  eq('C9 編輯模式隱藏 FAB', await page.$eval('#fab', e => e.hidden), true);
+  eq('C9 編輯模式 FAB 變成 ✓（結束編輯）', await page.$eval('#fab', e => [e.hidden, e.classList.contains('is-edit'),
+     getComputedStyle(e.querySelector('.fab-done')).display !== 'none', getComputedStyle(e.querySelector('.fab-plus')).display]),
+     [false, true, true, 'none']);
   eq('編輯模式顯示拖曳把手', await page.$eval('#list-daily .drag-handle',
      h => getComputedStyle(h).display !== 'none'), true);
   eq('進編輯模式才載入 Sortable', await page.evaluate(() => typeof window.Sortable), 'function');
 
-  /* C8 編輯模式點勾選框無反應 */
+  /* C8 編輯順序模式：點卡片任何位置都無反應 */
   await tapEl(page, '#list-daily .row:first-child .check');
   await sleep(250);
-  eq('C8 勾選狀態不變', await page.evaluate(() => App.isDone(App.state.tasks.find(t => t.title === 'a'))), false);
+  eq('C8 點左側：勾選狀態不變', await page.evaluate(() => App.isDone(App.state.tasks.find(t => t.title === 'a'))), false);
   eq('C8 不開 Modal', await page.$eval('#sheet-task', e => e.hidden), true);
+  await tapEl(page, '#list-daily .row:first-child .card-title');
+  await sleep(300);
+  eq('C8 點右側：不開編輯 Modal', await page.$eval('#sheet-task', e => e.hidden), true);
+  eq('C8 仍在編輯模式', await page.evaluate(() => App.mode), 'edit');
 
-  /* D1c 編輯模式點卡片開 Modal 改名 */
+  /* D1c 一般模式點卡片右側開 Modal 改名，再回編輯模式 */
+  await tapEl(page, '#fab'); await sleep(300);                       /* 編輯模式的 ✓：結束編輯 */
+  eq('D1c 點 ✓ 結束編輯', await page.evaluate(() => App.mode), 'normal');
   await tapEl(page, '#list-daily .row:first-child .card-title');
   await sleep(300);
   eq('D1c 開啟編輯 Modal', await page.$eval('#sheet-task', e => !e.hidden), true);
@@ -219,9 +227,12 @@ group('C / 編輯模式');
   await page.$eval('#input-title', i => { i.value = 'a2'; });
   await tapEl(page, '#sheet-task [data-act="save"]');
   await sleep(300);
-  eq('D1c 改名生效', await titles(page, 'daily'), ['a2', 'b', 'c']);
+  eq('D1c 改名生效', await titles(page, 'daily'), ['a2', 'c', 'b']);
   eq('D1c 完成狀態未被改動',
      await page.evaluate(() => App.isDone(App.state.tasks.find(t => t.title === 'b'))), true);
+  await page.evaluate(() => App.toggleEditMode());
+  await sleep(300);
+  eq('D1c 回到編輯模式顯示原順序', await titles(page, 'daily'), ['a2', 'b', 'c']);
 
   /* §3.2 拖曳排序 → order_index 重排 */
   await page.evaluate(() => {
@@ -1250,6 +1261,100 @@ group('M. 排序按鍵：建立日期 / 字母 / 自訂，點目前的切換正�
   eq('M8 重新載入保留排序', await page.evaluate(() => App.sort), { by: 'alpha', dir: 'desc' });
   eq('M8 排序不進 state', await page.evaluate(() => 'sort' in App.state), false);
   eq('M8 重載後圖示為倒序', await page.$eval('#btn-sort', s => s.classList.contains('is-desc')), true);
+  await ctx.close();
+}
+
+group('N. FAB：短按新增、長按圓弧面板（搜尋 / 編輯順序）');
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(ctx);
+  await page.goto(URL, { waitUntil: 'load' });
+  await addTask(page, 'daily', '喝水');
+  await addTask(page, 'daily', '晨跑');
+  await addTask(page, 'daily', '倒垃圾');
+  const fabBox = async () => page.$eval('#fab', el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, r }; });
+  const longPress = async (ms) => { const b = await fabBox(); await page.touchscreen.touchStart(b.x, b.y); await sleep(ms); await page.touchscreen.touchEnd(); await sleep(350); };
+
+  /* 短按＝新增 */
+  await tapEl(page, '#fab'); await sleep(300);
+  eq('N1 短按開新增 Modal', await page.$eval('#sheet-task', e => !e.hidden), true);
+  eq('N1 短按不開面板', await page.$eval('#fab-menu', m => m.hidden), true);
+  await tapEl(page, '#sheet-task [data-act="cancel"]'); await sleep(300);
+
+  /* 長按＝面板 */
+  await longPress(700);
+  const menu = await page.evaluate(() => {
+    const m = document.querySelector('#fab-menu'), fab = document.querySelector('#fab').getBoundingClientRect();
+    const r = m.getBoundingClientRect(); const cs = getComputedStyle(m);
+    const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+    const a = document.querySelector('#fab-opt-search .fab-opt-icon').getBoundingClientRect();
+    const b = document.querySelector('#fab-opt-edit .fab-opt-icon').getBoundingClientRect();
+    const inView = el => el.left >= 0 && el.top >= 0 && el.right <= innerWidth && el.bottom <= innerHeight;
+    return { hidden: m.hidden, open: m.classList.contains('is-open'), opacity: cs.opacity, transform: cs.transform,
+             circle: Math.abs(r.width - r.height) < 1 && cs.borderRadius !== '0px',
+             centered: Math.abs(cx - (fab.x + fab.width / 2)) < 1 && Math.abs(cy - (fab.y + fab.height / 2)) < 1,
+             optsInView: inView(a) && inView(b), aLeftOfB: a.left < b.left, bAboveA: b.top < a.top,
+             sheetHidden: document.querySelector('#sheet-task').hidden,
+             editLabel: document.querySelector('#fab-opt-edit-label').textContent };
+  });
+  ok('N2 長按開面板、不開新增 Modal', !menu.hidden && menu.open && menu.sheetHidden, menu);
+  ok('N2 面板是以 FAB 圓心為圓心的圓', menu.circle && menu.centered, menu);
+  ok('N2 面板淡入完成（opacity 1、無縮放）', menu.opacity === '1' && (menu.transform === 'none' || /matrix\(1, 0, 0, 1/.test(menu.transform)), menu);
+  ok('N2 兩個選項都在畫面內：搜尋在左、編輯在上', menu.optsInView && menu.aLeftOfB && menu.bAboveA, menu);
+  eq('N2 一般模式選項文字', menu.editLabel, '編輯順序');
+
+  /* 點外面收起 */
+  await page.touchscreen.tap(20, 300); await sleep(350);
+  eq('N3 點面板外收起', await page.$eval('#fab-menu', m => m.hidden), true);
+
+  /* 搜尋 */
+  await longPress(700);
+  await tapEl(page, '#fab-opt-search'); await sleep(350);
+  eq('N4 面板收起、搜尋列出現', await page.evaluate(() => [document.querySelector('#fab-menu').hidden, document.querySelector('#search-bar').hidden]), [true, false]);
+  eq('N4 搜尋框取得焦點', await page.evaluate(() => document.activeElement && document.activeElement.id), 'input-search');
+  await page.type('#input-search', '喝');
+  await sleep(300);
+  eq('N4 依名稱即時過濾', await titles(page, 'daily'), ['喝水']);
+  eq('N4 關鍵字寫入 App.query', await page.evaluate(() => App.query), '喝');
+  await page.$eval('#input-search', i => { i.value = 'zzz'; i.dispatchEvent(new Event('input', { bubbles: true })); });
+  await sleep(300);
+  eq('N4 無符合者顯示搜尋空狀態', await page.$eval('#empty-daily', e => e.hidden ? null : e.textContent), '沒有符合搜尋條件的任務。');
+  await page.$eval('#input-search', i => { i.value = '水'; i.dispatchEvent(new Event('input', { bubbles: true })); });
+  await sleep(300);
+  await page.goto(URL, { waitUntil: 'load' });
+  eq('N5 重載後關鍵字與搜尋列保留', await page.evaluate(() => [App.query, document.querySelector('#search-bar').hidden, document.querySelector('#input-search').value]), ['水', false, '水']);
+  eq('N5 重載後仍過濾', await titles(page, 'daily'), ['喝水']);
+  await tapEl(page, '#btn-search-close'); await sleep(300);
+  eq('N5 ✕ 清空並關閉', await page.evaluate(() => [App.query, document.querySelector('#search-bar').hidden]), ['', true]);
+  eq('N5 清單恢復', await titles(page, 'daily'), ['喝水', '晨跑', '倒垃圾']);
+
+  /* 編輯順序 */
+  await longPress(700);
+  await tapEl(page, '#fab-opt-edit'); await sleep(350);
+  eq('N6 進入編輯順序模式', await page.evaluate(() => App.mode), 'edit');
+  eq('N6 FAB 變 ✓', await page.$eval('#fab', f => f.classList.contains('is-edit')), true);
+  eq('N6 顯示拖曳把手', await page.$eval('#list-daily .drag-handle', h => getComputedStyle(h).display !== 'none'), true);
+  await tapEl(page, '#list-daily .row:first-child .card-side'); await sleep(250);
+  await tapEl(page, '#list-daily .row:first-child .card-body'); await sleep(250);
+  eq('N6 編輯模式點卡片：不切換完成、不開編輯', await page.evaluate(() =>
+     [App.isDone(App.activeTasks('daily')[0]), document.querySelector('#sheet-task').hidden]), [false, true]);
+  await longPress(700);
+  eq('N6 編輯模式下面板選項文字', await page.$eval('#fab-opt-edit-label', l => l.textContent), '結束編輯');
+  await page.touchscreen.tap(20, 300); await sleep(350);
+  await tapEl(page, '#fab'); await sleep(300);
+  eq('N7 點 ✓ 結束編輯', await page.evaluate(() => [App.mode, document.querySelector('#fab').classList.contains('is-edit')]), ['normal', false]);
+  eq('N7 結束後短按又是新增', await (async () => { await tapEl(page, '#fab'); await sleep(300); return page.$eval('#sheet-task', e => !e.hidden); })(), true);
+  await tapEl(page, '#sheet-task [data-act="cancel"]'); await sleep(300);
+
+  /* 長按途中移動＝取消 */
+  const b = await fabBox();
+  await page.touchscreen.touchStart(b.x, b.y);
+  await sleep(150);
+  await page.touchscreen.touchMove(b.x - 40, b.y - 40);
+  await sleep(600);
+  await page.touchscreen.touchEnd();
+  await sleep(300);
+  eq('N8 按住後移動：不開面板也不新增', await page.evaluate(() => [document.querySelector('#fab-menu').hidden, document.querySelector('#sheet-task').hidden]), [true, true]);
   await ctx.close();
 }
 

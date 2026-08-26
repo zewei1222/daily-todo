@@ -90,6 +90,15 @@
   --icon-size:     22px;   /* 標題列圖示按鍵內的 SVG */
   --chip-h:        36px;   /* 篩選面板的標籤選項 */
 
+  /* ---- FAB 長按圓弧面板：以 FAB 圓心為圓心的圓，只露出左上那一塊 ---- */
+  --fab-menu-r:    190px;  /* 面板半徑 */
+  --fab-opt-size:  52px;   /* 選項圓鈕直徑 */
+  --fab-opt-a-x:   116px;  /* 選項 A（左）相對圓心：往左 / 往上 */
+  --fab-opt-a-y:   44px;
+  --fab-opt-b-x:   44px;   /* 選項 B（上） */
+  --fab-opt-b-y:   116px;
+  --long-press:    450ms;  /* 長按判定時間 */
+
   /* ---- 左滑刪除 ---- */
   --swipe-action-w:      96px;
   --swipe-open-at:       44px;

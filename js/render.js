@@ -14,6 +14,7 @@
       btnSort:   A.$('#btn-sort'),
       filterBar: A.$('#filter-bar'),
       filterText: A.$('#filter-text'),
+      searchBar: A.$('#search-bar'),
       fab:       A.$('#fab'),
       lists:     { daily: A.$('#list-daily'), general: A.$('#list-general') },
       empties:   { daily: A.$('#empty-daily'), general: A.$('#empty-general') },
@@ -175,8 +176,9 @@
     var emptyEl = els.empties[type];
     emptyEl.hidden = tasks.length > 0;
     if (!emptyEl.hidden) {
-      if (A.mode !== 'edit' && A.filterActive() && A.activeTasks(type).length) {
-        emptyEl.textContent = '沒有符合篩選條件的任務。';
+      if (A.mode !== 'edit' && (A.filterActive() || A.query) && A.activeTasks(type).length) {
+        emptyEl.textContent = A.query && !A.filterActive() ? '沒有符合搜尋條件的任務。'
+                            : (A.query ? '沒有符合搜尋與篩選條件的任務。' : '沒有符合篩選條件的任務。');
       } else if (type === 'general') {
         emptyEl.textContent = '還沒有一般任務。按右下角的 ＋ 新增。';
       } else if (A.activeTasks('daily').length === 0) {
@@ -215,7 +217,12 @@
     var onList = A.tab === 'daily' || A.tab === 'general';
     els.btnEdit.classList.toggle('is-invisible', !onList);
     els.btnEdit.textContent = A.mode === 'edit' ? '完成' : '編輯';
-    els.fab.hidden = !onList || A.mode === 'edit';
+    /* FAB：一般模式是「＋新增」（長按開圓弧面板）；編輯順序模式變成「✓ 結束編輯」 */
+    els.fab.hidden = !onList;
+    els.fab.classList.toggle('is-edit', A.mode === 'edit');
+    els.fab.setAttribute('aria-label', A.mode === 'edit' ? '結束編輯順序' : '新增任務（長按開選單）');
+    /* 搜尋列：有關鍵字或使用者剛打開時顯示；編輯模式顯示全部，所以收起 */
+    els.searchBar.hidden = !(onList && A.mode === 'normal' && (A.query || A.searchOpen));
 
     /* 排序按鍵：圖示顯示正／倒序；非預設排序（自訂正序以外）時變主題色 */
     els.btnSort.classList.toggle('is-invisible', !onList);

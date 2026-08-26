@@ -239,7 +239,8 @@
   A.defaultUi = function () {
     return { tab: 'daily', scroll: { daily: 0, general: 0, stats: 0 },
              filter: { tags: [], from: null, to: null },
-             sort: { by: 'custom', dir: 'asc' } };
+             sort: { by: 'custom', dir: 'asc' },
+             query: '' };
   };
 
   A.readUiState = function () {
@@ -257,6 +258,7 @@
       }
       if (o && o.filter && A.normFilter) ui.filter = A.normFilter(o.filter);
       if (o && o.sort && A.normSort) ui.sort = A.normSort(o.sort);
+      if (o && A.normQuery) ui.query = A.normQuery(o.query);
     } catch (e) {}
     return ui;
   };

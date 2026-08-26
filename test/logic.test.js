@@ -520,5 +520,16 @@ eq('同值以 order_index 決勝（穩定）', (function () {
   var r = names('general', 'normal'); A.sort = A.normSort(null); return r;
 })(), ['y', 'x']);
 
+group('搜尋：normQuery / matchesQuery / sortedTasks');
+eq('normQuery 去空白、限 80 字、非字串為空', [A.normQuery('  喝水 '), A.normQuery(null), A.normQuery('x'.repeat(100)).length], ['喝水', '', 80]);
+setState([general('喝水提醒', null, 1000), general('Apple pie', null, 2000), general('apple', null, 3000)]);
+eq('matchesQuery 空字串＝全部', A.matchesQuery(A.findTask('喝水提醒'), ''), true);
+eq('matchesQuery 子字串、不分大小寫', [A.matchesQuery(A.findTask('Apple pie'), 'PIE'), A.matchesQuery(A.findTask('喝水提醒'), '水提'),
+                                     A.matchesQuery(A.findTask('喝水提醒'), 'apple')], [true, true, false]);
+A.query = 'apple';
+eq('sortedTasks 一般模式套搜尋', A.sortedTasks('general', 'normal').map(function (t) { return t.title; }), ['Apple pie', 'apple']);
+eq('sortedTasks 編輯模式不套搜尋', A.sortedTasks('general', 'edit').length, 3);
+A.query = '';
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
