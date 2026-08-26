@@ -180,13 +180,15 @@ button {
 .row.is-over .row-actions { background: var(--c-danger-2); }
 .row.is-over .btn-del { transform: scale(var(--del-over-scale)); }
 
+/* 卡片：左右兩個純色色塊。左側是 --card-side-w 寬的主題色方塊，圓圈居中；
+   右側是卡片底色，放標題與敘述。兩塊的交界就是「分隔線」，不畫邊框。
+   點左側切換完成、點右側開編輯（gestures.js 的 tapCard）。 */
 .card {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+  align-items: stretch;
   min-height: var(--card-min-h);
-  padding: var(--sp-3) var(--sp-4);
+  overflow: hidden;                   /* 讓左側色塊吃到卡片的圓角 */
   background: var(--c-surface);
   border-radius: var(--r-md);
   touch-action: pan-y;
@@ -195,7 +197,30 @@ button {
   -webkit-user-select: none;
 }
 
-.card.is-press { background: var(--c-surface-2); }
+.card-side {
+  flex: 0 0 var(--card-side-w);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-card-side);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--c-surface);       /* 右側＝卡片底色，明寫出來，不靠透明露出 */
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+/* 按壓回饋：按在哪一側，哪一側變色 */
+.card.is-press .card-body { background: var(--c-surface-2); }
+.card.is-press-side .card-body { background: var(--c-surface); }
+.card.is-press-side .card-side { background: var(--c-card-side-press); }
 
 .card-main {
   flex: 1 1 auto;
@@ -222,6 +247,7 @@ button {
   text-decoration: line-through;
 }
 
+/* 圓圈：未完成時與右側同色，完成時翻成主文字色、露出主題色的勾 */
 .check {
   flex: 0 0 auto;
   display: flex;
@@ -230,20 +256,20 @@ button {
   width: var(--check-size);
   height: var(--check-size);
   border-radius: var(--r-pill);
-  background: var(--c-bg);            /* 未完成：純黑，與分段選擇器的未選中一致 */
+  background: var(--c-check);
   font-size: var(--fs-2);
   font-weight: var(--fw-bold);
   line-height: 1;
   transition: background-color var(--dur-fast) var(--ease-out);
 }
 .check-mark {
-  color: var(--c-on-accent);
+  color: var(--c-check-mark);
   opacity: 0;
   transform: scale(0.5);
   transition: opacity var(--dur-fast) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
-.card.is-done .check { background: var(--c-accent); }
+.card.is-done .check { background: var(--c-check-done); }
 .card.is-done .check-mark { opacity: 1; transform: scale(1); }
 
 .badge {
@@ -706,3 +732,32 @@ textarea.input {
 }
 .btn.is-compact { padding: 0 var(--sp-4); font-size: var(--fs-1); }
 .btn.on-surface-2 { background: var(--c-bg); }
+
+/* 設定頁：外觀與主題色 */
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+.swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-min);
+  height: var(--hit-min);
+  border-radius: var(--r-pill);
+  color: var(--c-on-accent);
+  font-size: var(--fs-3);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+.swatch:active { transform: scale(var(--press-scale)); }
+.swatch > span { opacity: 0; transform: scale(0.5);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+.swatch[aria-pressed="true"] > span { opacity: 1; transform: scale(1); }
+.swatch[data-accent="purple"] { background: var(--accent-purple); }
+.swatch[data-accent="yellow"] { background: var(--accent-yellow); }
+.swatch[data-accent="blue"]   { background: var(--accent-blue); }
+.swatch[data-accent="green"]  { background: var(--accent-green); }
+.swatch[data-accent="orange"] { background: var(--accent-orange); }
+.swatch[data-accent="pink"]   { background: var(--accent-pink); }

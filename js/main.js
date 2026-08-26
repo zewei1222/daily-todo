@@ -199,7 +199,30 @@
   }
 
   /* ================= 設定 Sheet ================= */
+  function renderThemeUi() {
+    var t = A.theme || A.readTheme();
+    A.$$('#seg-appearance button').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.dataset.appearance === t.appearance ? 'true' : 'false');
+    });
+    var host = A.$('#swatches-accent');
+    if (!host) return;
+    if (!host.children.length) {
+      A.THEME_ACCENTS.forEach(function (a) {
+        var b = A.el('button', 'swatch');
+        b.type = 'button';
+        b.dataset.accent = a.id;
+        b.setAttribute('aria-label', a.name);
+        b.appendChild(A.el('span', null, '✓'));
+        host.appendChild(b);
+      });
+    }
+    A.$$('.swatch', host).forEach(function (b) {
+      b.setAttribute('aria-pressed', b.dataset.accent === t.accent ? 'true' : 'false');
+    });
+  }
+
   function fillSettings() {
+    renderThemeUi();
     var sel = A.$('#input-reset-hour');
     if (!sel.options.length) {
       for (var h = 0; h < 24; h++) {
@@ -582,6 +605,18 @@
     });
     setSheet.addEventListener('click', function (e) {
       if (e.target.dataset && e.target.dataset.act === 'close') closeSheet(setSheet);
+    });
+    A.$('#seg-appearance').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      A.setTheme({ appearance: b.dataset.appearance });
+      renderThemeUi();
+    });
+    A.$('#swatches-accent').addEventListener('click', function (e) {
+      var b = e.target.closest('.swatch');
+      if (!b) return;
+      A.setTheme({ accent: b.dataset.accent });
+      renderThemeUi();
     });
     A.$('#input-reset-hour').addEventListener('change', function (e) {
       A.state.settings.reset_hour = A.clampHour(e.target.value);

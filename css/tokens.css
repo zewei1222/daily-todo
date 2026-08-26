@@ -2,9 +2,14 @@
    tokens.css — 唯一的視覺數值來源
    其餘 CSS 只能引用這些變數，禁止硬編碼色值 / 圓角 / 間距 / 動畫時間。
 
-   規範：純色深色模式。全域純黑背景、純色深紫模態、高對比深色卡片。
+   規範：純色模式，深色（預設）／淺色兩套底色，主題色可換。
    禁止：漸層、透明度（rgba）、blur、模糊陰影、任何形式的邊框描邊。
-   版面一律以純色色塊切割，不靠線條。
+   版面一律以純色色塊切割，不靠線條 —— 卡片左右兩側的「分隔線」也只是
+   兩個色塊的交界，不是畫出來的線。
+
+   切換方式（由 js/theme.js 寫在 <html> 上）：
+     data-appearance = dark | light | system   底色（system 時跟隨 prefers-color-scheme）
+     data-accent     = purple | yellow | blue | green | orange | pink   主題色
    ========================================================================== */
 :root {
   color-scheme: dark;
@@ -23,6 +28,22 @@
   --c-danger:       #FF453A;
   --c-danger-2:     #C62A20;   /* 超過刪除門檻 */
   --c-on-danger:    #FFFFFF;
+
+  /* 卡片：左側正方形色塊用主題色；圓圈未完成時與右側同色（像挖了一個洞），
+     完成時翻成主文字色並露出主題色的勾。 */
+  --c-card-side:        var(--c-accent);
+  --c-card-side-press:  var(--c-modal);
+  --c-check:            var(--c-surface);
+  --c-check-done:       var(--c-ink);
+  --c-check-mark:       var(--c-accent);
+
+  /* ---- 主題色候選（設定頁的色票也讀這裡；只在這一處定義色值） ---- */
+  --accent-purple:  #9E7BFF;  --accent-purple-deep: #5E35B1;
+  --accent-yellow:  #FFD60A;  --accent-yellow-deep: #8A6D00;
+  --accent-blue:    #64B5F6;  --accent-blue-deep:   #1E4F8A;
+  --accent-green:   #30D158;  --accent-green-deep:  #1B6B34;
+  --accent-orange:  #FF9F0A;  --accent-orange-deep: #9A4E00;
+  --accent-pink:    #FF6B9D;  --accent-pink-deep:   #9B2C55;
 
   /* ---- 圓角（無邊框，形狀靠色塊與圓角） ---- */
   --r-lg:    24px;   /* 大區塊、彈出視窗 */
@@ -60,6 +81,7 @@
   --tab-h:         56px;
   --fab-size:      60px;
   --card-min-h:    60px;
+  --card-side-w:   60px;   /* 卡片左側色塊寬度：與 --card-min-h 同值才是正方形 */
   --check-size:    26px;
   --hit-min:       44px;
   --content-max:   560px;
@@ -86,4 +108,52 @@
      --vv-top 極少數情況 iOS 仍搬動可視區域時的補償量 */
   --kb-h: 0px;
   --vv-top: 0px;
+}
+
+/* ==========================================================================
+   主題色（data-accent）。預設紫色已寫在 :root。
+   每組只換三個值：強調色、模態深色塊、強調色底上的提示字。
+   ========================================================================== */
+:root[data-accent="yellow"] {
+  --c-accent: var(--accent-yellow); --c-modal: var(--accent-yellow-deep); --c-hint-accent: var(--accent-yellow-deep);
+}
+:root[data-accent="blue"] {
+  --c-accent: var(--accent-blue);   --c-modal: var(--accent-blue-deep);   --c-hint-accent: var(--accent-blue-deep);
+}
+:root[data-accent="green"] {
+  --c-accent: var(--accent-green);  --c-modal: var(--accent-green-deep);  --c-hint-accent: var(--accent-green-deep);
+}
+:root[data-accent="orange"] {
+  --c-accent: var(--accent-orange); --c-modal: var(--accent-orange-deep); --c-hint-accent: var(--accent-orange-deep);
+}
+:root[data-accent="pink"] {
+  --c-accent: var(--accent-pink);   --c-modal: var(--accent-pink-deep);   --c-hint-accent: var(--accent-pink-deep);
+}
+
+/* ==========================================================================
+   淺色底色（data-appearance="light"，或 system 且系統為淺色）。
+   深色是預設值，寫在 :root；這裡只覆寫底色與文字，主題色不變。
+   兩個區塊內容必須一致 —— CSS 沒有 mixin，只能寫兩份。
+   ========================================================================== */
+:root[data-appearance="light"] {
+  color-scheme: light;
+  --c-bg:        #F2F2F7;
+  --c-surface:   #FFFFFF;
+  --c-surface-2: #E5E5EA;
+  --c-ink:       #000000;
+  --c-ink-2:     #6E6E73;
+  --c-danger:    #FF3B30;
+  --c-danger-2:  #C62A20;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-appearance="system"] {
+    color-scheme: light;
+    --c-bg:        #F2F2F7;
+    --c-surface:   #FFFFFF;
+    --c-surface-2: #E5E5EA;
+    --c-ink:       #000000;
+    --c-ink-2:     #6E6E73;
+    --c-danger:    #FF3B30;
+    --c-danger-2:  #C62A20;
+  }
 }

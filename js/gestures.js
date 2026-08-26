@@ -1,4 +1,5 @@
-/* gestures.js — 點擊與左滑刪除。1:1 跟手、無長按、同時只有一張露出（SPEC §4.2 / §7.5）。 */
+/* gestures.js — 點擊與左滑刪除。1:1 跟手、無長按、同時只有一張露出（SPEC §4.2 / §7.5）。
+   點擊分兩側：卡片左側色塊（.card-side）切換完成，右側（.card-body）開編輯。 */
 (function (A) {
   'use strict';
 
@@ -72,9 +73,11 @@
       swallow: swallow
     };
 
-    card.classList.add('is-press');
+    card.classList.add(t.closest('.card-side') ? 'is-press-side' : 'is-press');
     try { card.setPointerCapture(e.pointerId); } catch (err) {}
   }
+
+  function unpress(card) { card.classList.remove('is-press', 'is-press-side'); }
 
   function onMove(e) {
     if (!st || e.pointerId !== st.id) return;
@@ -85,10 +88,10 @@
     if (st.phase === 'undecided') {
       if (Math.abs(dx) > k.slop && Math.abs(dx) > Math.abs(dy)) {
         st.phase = 'swipe';
-        st.card.classList.remove('is-press');
+        unpress(st.card);
       } else if (Math.abs(dy) > k.slop) {
         st.phase = 'scroll';                    /* 讓瀏覽器捲動，不再介入 */
-        st.card.classList.remove('is-press');
+        unpress(st.card);
         return;
       } else {
         return;
@@ -110,7 +113,7 @@
     if (!st || (e && e.pointerId !== st.id)) return;
     var s = st;
     st = null;
-    s.card.classList.remove('is-press');
+    unpress(s.card);
     try { s.card.releasePointerCapture(s.id); } catch (err) {}
 
     if (s.phase === 'swipe') {
@@ -136,7 +139,7 @@
     if (!st || (e && e.pointerId !== st.id)) return;
     var s = st;
     st = null;
-    s.card.classList.remove('is-press');
+    unpress(s.card);
     if (s.phase === 'swipe') {
       if (openRow === s.row) setX(s.card, -tok().actionW, true);
       else { s.row.classList.remove('is-over'); setX(s.card, 0, true); }
@@ -148,16 +151,18 @@
     var task = A.findTask(row.dataset.id);
     if (!task) return;
 
-    if (A.mode === 'edit') {
-      if (target.closest('.check')) return;        /* 編輯模式下勾選框停用 */
-      if (A.openTaskSheet) A.openTaskSheet(task);
+    /* 左側色塊：切換完成（編輯模式下停用，不開 Modal 也不切換） */
+    if (target.closest('.card-side')) {
+      if (A.mode === 'edit') return;
+      A.toggle(task);
+      A.render.list(task.type, { animate: true });
+      if (A.tab === 'stats') A.render.stats();
+      A.save();
       return;
     }
 
-    A.toggle(task);
-    A.render.list(task.type, { animate: true });
-    if (A.tab === 'stats') A.render.stats();
-    A.save();
+    /* 右側：編輯任務（一般與編輯模式皆然） */
+    if (A.openTaskSheet) A.openTaskSheet(task);
   }
 
   function onClick(e) {

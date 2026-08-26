@@ -101,7 +101,14 @@ group('D. 手勢：點擊 / 左滑刪除');
 
   await tapEl(page, '#list-daily .row:last-child .card-title');
   await sleep(300);
-  eq('D1b 點文字取消完成', await titles(page, 'daily'), ['喝水', '運動']);
+  eq('D1b 點右側文字不切換完成', await titles(page, 'daily'), ['運動', '喝水']);
+  eq('D1b 點右側文字開啟編輯 Modal', await page.$eval('#sheet-task', e => !e.hidden), true);
+  eq('D1b Modal 帶入該任務', await page.$eval('#input-title', i => i.value), '喝水');
+  await tapEl(page, '#sheet-task [data-act="cancel"]');
+  await sleep(300);
+  await tapEl(page, '#list-daily .row:last-child .card-side');
+  await sleep(300);
+  eq('D1b 點左側色塊取消完成', await titles(page, 'daily'), ['喝水', '運動']);
   eq('B1 未完成不顯示數字', await page.$eval('#list-daily .row:first-child .badge',
      s => s.hidden), true);
 
@@ -182,7 +189,7 @@ group('C / 編輯模式');
   await addTask(page, 'daily', 'a');
   await addTask(page, 'daily', 'b');
   await addTask(page, 'daily', 'c');
-  await tapEl(page, '#list-daily .row:nth-child(2) .card');   /* b 完成 → 沉底 */
+  await tapEl(page, '#list-daily .row:nth-child(2) .card-side');   /* b 完成 → 沉底 */
   await sleep(300);
   eq('C1 中間任務沉底', await titles(page, 'daily'), ['a', 'c', 'b']);
 
@@ -259,7 +266,7 @@ group('C7 新增 / 一般分頁 / H 清除已完成');
   eq('新增成功', await titles(page, 'daily'), ['第一筆']);
 
   await addTask(page, 'daily', '第二筆');
-  await tapEl(page, '#list-daily .row:first-child .card');   /* 第一筆完成 */
+  await tapEl(page, '#list-daily .row:first-child .card-side');   /* 第一筆完成 */
   await sleep(300);
   await tapEl(page, '#fab');
   await sleep(250);
@@ -273,7 +280,7 @@ group('C7 新增 / 一般分頁 / H 清除已完成');
   await sleep(200);
   await addTask(page, 'general', 'g1');
   await addTask(page, 'general', 'g2');
-  await tapEl(page, '#list-general .row:first-child .card');
+  await tapEl(page, '#list-general .row:first-child .card-side');
   await sleep(300);
   eq('C6 一般任務原地變完成', await titles(page, 'general'), ['g1', 'g2']);
   eq('C6 樣式為已完成', await page.$eval('#list-general .row:first-child .card',
@@ -301,7 +308,7 @@ group('A6 換日 / A8 reset_hour');
   const page = await newPage(ctx);
   await page.goto(URL, { waitUntil: 'domcontentloaded' });
   await addTask(page, 'daily', '每天');
-  await tapEl(page, '#list-daily .row:first-child .card');
+  await tapEl(page, '#list-daily .row:first-child .card-side');
   await sleep(250);
   eq('已完成', await page.evaluate(() => App.isDone(App.state.tasks[0])), true);
   const before = await page.evaluate(() => App.state.tasks[0].history.slice());
@@ -650,9 +657,9 @@ group('軟刪除：SOFT_DELETE_TASK.md 的 16 項驗收');
     App.save(); App.render.list('general', { animate: false });
   });
   await sleep(150);
-  await tapEl(page, '#list-general .row:nth-child(1) .card');
+  await tapEl(page, '#list-general .row:nth-child(1) .card-side');
   await sleep(250);
-  await tapEl(page, '#list-general .row:nth-child(2) .card');
+  await tapEl(page, '#list-general .row:nth-child(2) .card-side');
   await sleep(250);
   const dailyBefore = await page.evaluate(() => App.activeTasks('daily').map(t => t.title));
   await tapEl(page, '#btn-clear-done');
@@ -874,6 +881,155 @@ group('版本與更新提示（I4）');
 }
 
 /* ================================================================= */
+group('K. 卡片左右分割 / 外觀與主題色');
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(ctx);
+  await page.goto(URL, { waitUntil: 'load' });
+  const idA = await addTask(page, 'daily', '分割卡', { note: '一行敘述' });
+  await addTask(page, 'daily', '方塊');                 /* 無敘述：最矮的卡片，左側才是正方形 */
+  const rowA = `#list-daily .row[data-id="${idA}"]`;   /* 完成後會沉底，一律用 id 選 */
+
+  const geo = await page.evaluate(() => {
+    const row = document.querySelector('#list-daily .row:nth-child(2)');
+    const card = row.querySelector('.card').getBoundingClientRect();
+    const side = row.querySelector('.card-side').getBoundingClientRect();
+    const body = row.querySelector('.card-body').getBoundingClientRect();
+    const chk = row.querySelector('.check').getBoundingClientRect();
+    return {
+      sideSquare: Math.abs(side.width - side.height) < 1,
+      sideFullHeight: Math.abs(side.height - card.height) < 1,
+      sideAtLeft: Math.abs(side.left - card.left) < 1,
+      bodyStartsAtSideRight: Math.abs(body.left - side.right) < 1,
+      gapL: chk.left - side.left, gapR: side.right - chk.right,
+      gapT: chk.top - side.top, gapB: side.bottom - chk.bottom
+    };
+  });
+  ok('K1 左側為正方形', geo.sideSquare, geo);
+  ok('K1 左側佔滿卡片高度、貼齊左緣', geo.sideFullHeight && geo.sideAtLeft, geo);
+  ok('K1 右側緊接在左側之後（分隔線＝色塊交界）', geo.bodyStartsAtSideRight, geo);
+  ok('K1 圓圈在正方形正中央（四邊等距）',
+     [geo.gapR, geo.gapT, geo.gapB].every(g => Math.abs(g - geo.gapL) < 1), geo);
+  const tall = await page.evaluate(() => {
+    const row = document.querySelector('#list-daily .row:nth-child(1)');   /* 有敘述：較高 */
+    const card = row.querySelector('.card').getBoundingClientRect();
+    const side = row.querySelector('.card-side').getBoundingClientRect();
+    const chk = row.querySelector('.check').getBoundingClientRect();
+    return { taller: card.height > 60, full: Math.abs(side.height - card.height) < 1,
+             centered: Math.abs((chk.top - side.top) - (side.bottom - chk.bottom)) < 1 };
+  });
+  ok('K1 帶敘述的卡片較高：左側仍佔滿、圓圈仍垂直居中', tall.taller && tall.full && tall.centered, tall);
+
+  const colors = await page.evaluate(() => {
+    const cs = sel => getComputedStyle(document.querySelector(sel));
+    return { side: cs('#list-daily .card-side').backgroundColor,
+             body: cs('#list-daily .card-body').backgroundColor,
+             card: cs('#list-daily .card').backgroundColor,
+             fab: cs('#fab').backgroundColor,
+             check: cs('#list-daily .check').backgroundColor };
+  });
+  eq('K2 左側為主題色（與 FAB 同色）', colors.side, colors.fab);
+  eq('K2 右側為卡片底色', colors.body, colors.card);
+  eq('K2 未完成的圓圈與右側同色', colors.check, colors.card);
+  ok('K2 左右兩側顏色不同', colors.side !== colors.body, colors);
+
+  /* 點左側切換完成；點右側開編輯 */
+  await tapEl(page, rowA + ' .card-side');
+  await sleep(300);
+  eq('K3 點左側方塊 → 完成', await page.$eval(rowA + ' .card', c => c.classList.contains('is-done')), true);
+  eq('K3 完成的卡片沉底', await titles(page, 'daily'), ['方塊', '分割卡']);
+  eq('K3 左側 aria-pressed 同步', await page.$eval(rowA + ' .card-side', s => s.getAttribute('aria-pressed')), 'true');
+  const doneCheck = await page.$eval(rowA + ' .check', c => getComputedStyle(c).backgroundColor);
+  ok('K3 完成後圓圈變色', doneCheck !== colors.check, { before: colors.check, after: doneCheck });
+  eq('K3 勾勾顯示', await page.$eval(rowA + ' .check-mark', m => getComputedStyle(m).opacity), '1');
+  eq('K3 點左側不開 Modal', await page.$eval('#sheet-task', e => e.hidden), true);
+
+  await tapEl(page, rowA + ' .card-body');
+  await sleep(300);
+  eq('K4 點右側 → 開編輯 Modal', await page.$eval('#sheet-task', e => !e.hidden), true);
+  eq('K4 Modal 帶入標題與敘述', await page.evaluate(() =>
+     [document.querySelector('#input-title').value, document.querySelector('#input-note').value]),
+     ['分割卡', '一行敘述']);
+  eq('K4 點右側不切換完成', await page.$eval(rowA + ' .card', c => c.classList.contains('is-done')), true);
+  await tapEl(page, '#sheet-task [data-act="cancel"]');
+  await sleep(300);
+
+  /* 外觀與主題色：預設深色紫 */
+  eq('K5 預設外觀為深色', await page.evaluate(() => document.documentElement.getAttribute('data-appearance')), 'dark');
+  eq('K5 預設主題色為紫', await page.evaluate(() => document.documentElement.getAttribute('data-accent')), 'purple');
+
+  await tapEl(page, '#btn-settings'); await sleep(300);
+  eq('K5 設定頁列出 6 個色票', await page.$$eval('#swatches-accent .swatch', n => n.length), 6);
+  eq('K5 目前色票被選中', await page.$eval('#swatches-accent .swatch[data-accent="purple"]',
+     b => b.getAttribute('aria-pressed')), 'true');
+
+  await tapEl(page, '#swatches-accent .swatch[data-accent="yellow"]'); await sleep(200);
+  const yellow = await page.evaluate(() => {
+    const cs = sel => getComputedStyle(document.querySelector(sel));
+    return { attr: document.documentElement.getAttribute('data-accent'),
+             side: cs('#list-daily .card-side').backgroundColor,
+             hero: cs('.sheet-hero').backgroundColor,
+             swatch: cs('#swatches-accent .swatch[data-accent="yellow"]').backgroundColor,
+             pressed: document.querySelector('#swatches-accent .swatch[data-accent="yellow"]').getAttribute('aria-pressed'),
+             stored: JSON.parse(localStorage.getItem('theme')).accent };
+  });
+  eq('K6 選黃色 → html data-accent', yellow.attr, 'yellow');
+  eq('K6 卡片左側跟著變成黃色（與色票同色）', yellow.side, yellow.swatch);
+  ok('K6 模態主色塊跟著換', yellow.hero !== 'rgb(94, 53, 177)', yellow);
+  eq('K6 色票選中狀態切換', yellow.pressed, 'true');
+  eq('K6 寫入 localStorage', yellow.stored, 'yellow');
+
+  await tapEl(page, '#seg-appearance [data-appearance="light"]'); await sleep(200);
+  const light = await page.evaluate(() => {
+    const cs = sel => getComputedStyle(document.querySelector(sel));
+    return { attr: document.documentElement.getAttribute('data-appearance'),
+             body: cs('body').backgroundColor, card: cs('#list-daily .card').backgroundColor,
+             cardBody: cs('#list-daily .card-body').backgroundColor,
+             ink: cs('body').color,
+             meta: document.querySelector('meta[name="theme-color"]').content,
+             scheme: cs('html').colorScheme };
+  });
+  eq('K7 選淺色 → html data-appearance', light.attr, 'light');
+  eq('K7 全局背景變淺', light.body, 'rgb(242, 242, 247)');
+  eq('K7 卡片右側變白', light.cardBody, 'rgb(255, 255, 255)');
+  eq('K7 文字變黑', light.ink, 'rgb(0, 0, 0)');
+  eq('K7 theme-color 跟著底色', light.meta.toLowerCase(), '#f2f2f7');
+  eq('K7 color-scheme 為 light', light.scheme, 'light');
+
+  await tapEl(page, '#seg-appearance [data-appearance="system"]'); await sleep(200);
+  eq('K8 跟隨系統（headless 預設淺色）→ 底色為淺色', await page.$eval('body', b => getComputedStyle(b).backgroundColor), 'rgb(242, 242, 247)');
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+  await sleep(100);
+  eq('K8 系統切深色 → 底色跟著變黑', await page.$eval('body', b => getComputedStyle(b).backgroundColor), 'rgb(0, 0, 0)');
+  await page.emulateMediaFeatures([]);
+
+  /* 重新載入後偏好保留 */
+  await page.goto(URL, { waitUntil: 'load' });
+  eq('K9 重新載入保留外觀', await page.evaluate(() => document.documentElement.getAttribute('data-appearance')), 'system');
+  eq('K9 重新載入保留主題色', await page.evaluate(() => document.documentElement.getAttribute('data-accent')), 'yellow');
+  eq('K9 主題偏好不進 state / 備份', await page.evaluate(() => 'theme' in App.state || 'theme' in App.state.settings), false);
+
+  /* 淺色模式下也無邊框、無透明色 */
+  await page.evaluate(() => App.setTheme({ appearance: 'light' }));
+  eq('K10 淺色模式全介面無邊框', await page.evaluate(() => {
+    const bad = [];
+    document.querySelectorAll('*').forEach(el => {
+      const cs = getComputedStyle(el);
+      ['Top', 'Right', 'Bottom', 'Left'].forEach(side => {
+        if (parseFloat(cs['border' + side + 'Width']) > 0 && cs['border' + side + 'Style'] !== 'none')
+          bad.push(el.className || el.tagName);
+      });
+    });
+    return bad.slice(0, 5);
+  }), []);
+  ok('K10 淺色模式無 rgba 透明色', await page.evaluate(() =>
+    Array.from(document.querySelectorAll('*')).every(el => {
+      const cs = getComputedStyle(el);
+      return !/rgba\((?!0, 0, 0, 0\))/.test(cs.backgroundColor + cs.color);
+    })));
+  await ctx.close();
+}
+
 group('I. 版面與 tokens');
 {
   const ctx = await browser.createBrowserContext();
@@ -894,6 +1050,10 @@ group('I. 版面與 tokens');
      'rgb(0, 0, 0)');
   eq('卡片為高對比深色，無透明度', await page.$eval('#list-daily .card',
      c => getComputedStyle(c).backgroundColor), 'rgb(28, 28, 30)');
+  eq('卡片右側與卡片同色', await page.$eval('#list-daily .card-body',
+     c => getComputedStyle(c).backgroundColor), 'rgb(28, 28, 30)');
+  eq('卡片左側為強調色', await page.$eval('#list-daily .card-side',
+     c => getComputedStyle(c).backgroundColor), 'rgb(158, 123, 255)');
   eq('無半透明遮罩：sheet 背景為實色純黑',
      await page.$eval('#sheet-task', s => getComputedStyle(s).backgroundColor), 'rgb(0, 0, 0)');
   eq('模態主色塊為純色深紫', await page.$eval('.sheet-hero',

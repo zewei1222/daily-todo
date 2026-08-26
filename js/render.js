@@ -72,20 +72,28 @@
     del.dataset.act = 'delete';
     actions.appendChild(del);
 
+    /* 卡片分左右兩個色塊：左側正方形（主題色）放圓圈，點它切換完成；
+       右側（卡片底色）放標題與敘述，點它開編輯。 */
     var card = A.el('div', 'card');
+
+    var side = A.el('span', 'card-side');
+    side.setAttribute('role', 'button');
     var check = A.el('span', 'check');
     check.appendChild(A.el('span', 'check-mark', '✓'));
-    card.appendChild(check);
+    side.appendChild(check);
+    card.appendChild(side);
 
+    var body = A.el('span', 'card-body');
+    body.setAttribute('role', 'button');
     var main = A.el('span', 'card-main');
     main.appendChild(A.el('span', 'card-title'));
     main.appendChild(A.el('span', 'card-note'));
-    card.appendChild(main);
-
-    card.appendChild(A.el('span', 'badge'));
+    body.appendChild(main);
+    body.appendChild(A.el('span', 'badge'));
     var handle = A.el('span', 'drag-handle', '≡');
     handle.setAttribute('aria-hidden', 'true');
-    card.appendChild(handle);
+    body.appendChild(handle);
+    card.appendChild(body);
 
     row.appendChild(actions);
     row.appendChild(card);
@@ -106,9 +114,10 @@
 
     var done = A.isDone(task);
     card.classList.toggle('is-done', done);
-    card.setAttribute('role', 'button');
-    card.setAttribute('aria-pressed', done ? 'true' : 'false');
-    card.setAttribute('aria-label', task.title);
+    var side = A.$('.card-side', row);
+    side.setAttribute('aria-pressed', done ? 'true' : 'false');
+    side.setAttribute('aria-label', (done ? '取消完成 ' : '完成 ') + task.title);
+    A.$('.card-body', row).setAttribute('aria-label', '編輯 ' + task.title);
 
     /* 一般模式顯示連續期數；編輯模式改顯示週期，方便一眼確認排程 */
     var text = '', quiet = false;

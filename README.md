@@ -10,6 +10,10 @@
 兩種任務：**日常**（依週期重複，每日／每週／每月／每年，記連續期數）與**一般**（做完就結束）。
 兩者都可以加一行敘述，顯示在卡片標題下方。
 
+任務卡片分左右兩個色塊：**左側是一個正方形的主題色方塊，圓圈在正中央**，點它切換完成／未完成
+（完成時圓圈翻色並出現勾）；**右側是卡片底色**，放標題與敘述，點它開啟編輯。兩塊的交界就是視覺上的
+分隔線，沒有畫任何邊框。主題色與底色（深／淺／跟隨系統）都可以在設定頁調整。
+
 - 主資料：IndexedDB（單筆 record，key = `app`）
 - 首屏同步渲染：localStorage `mirror`
 - 備份：GitHub private gist（`todo-backup.json`），debounce 3 秒自動上傳
@@ -82,6 +86,7 @@ js/util.js            日期（邏輯日期、shiftDate）、DOM、token 讀取
 js/store.js           IndexedDB + mirror + ui_state、資料正規化與匯入驗證
 js/model.js           勾選、連續天數、排序、order_index（無 DOM）
 js/sync.js            gist 備份、同步方向決策
+js/theme.js           外觀（深／淺／跟隨系統）與主題色：存 localStorage，寫到 <html> 的 data-* 屬性
 js/render.js          差異更新渲染 + FLIP 動畫 + 統計
 js/gestures.js        點擊與左滑刪除（Pointer Events，1:1 跟手）
 js/main.js            啟動三階段、事件接線、Sheet、Service Worker 註冊
@@ -165,11 +170,11 @@ v1（只有標題）的資料可以直接讀入與匯入，會自動補上：`no
 ## 測試
 
 ```bash
-node test/logic.test.js          # 純邏輯：日期、週期、連續期數、排序、軟刪除、匯入驗證、遷移（139 項）
+node test/logic.test.js          # 純邏輯：日期、週期、連續期數、排序、軟刪除、匯入驗證、遷移（142 項）
 
 python3 test/serve.py            # 另開一個終端，掛在 /daily-todo/ 路徑
 cd test && npm i                 # 只裝 puppeteer-core，用系統的 google-chrome
-node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面（169 項）
+node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題（224 項）
 node sync.test.mjs               # 用假的 GitHub API 驗證備份流程 F1–F6、E5、軟刪除同步（33 項）
 ```
 
@@ -177,7 +182,7 @@ UI 測試預設 `executablePath: '/usr/bin/google-chrome'`，換環境時改掉�
 
 ## 視覺規範
 
-深色純色模式，數值全部集中在 `css/tokens.css`：
+純色模式，數值全部集中在 `css/tokens.css`。深色是預設值（寫在 `:root`）：
 
 | 用途 | 值 |
 |---|---|
@@ -190,8 +195,32 @@ UI 測試預設 `executablePath: '/usr/bin/google-chrome'`，換環境時改掉�
 | 強調色 | `#9E7BFF` |
 | 圓角 | 大區塊 24px、卡片與群組 16px、分段按鈕 12px、輸入框與按鈕全圓角 |
 
+淺色（`data-appearance="light"`，或 `system` 且系統為淺色）只覆寫底色與文字：全局背景 `#F2F2F7`、
+卡片 `#FFFFFF`、控制項 `#E5E5EA`、主文字 `#000000`、次要文字 `#6E6E73`。主題色不隨深淺變動。
+
+主題色（`data-accent`）共六組，每組只換三個值 —— 強調色、模態深色塊、強調色底上的提示字：
+
+| id | 強調色 | 模態深色 |
+|---|---|---|
+| `purple`（預設） | `#9E7BFF` | `#5E35B1` |
+| `yellow` | `#FFD60A` | `#8A6D00` |
+| `blue` | `#64B5F6` | `#1E4F8A` |
+| `green` | `#30D158` | `#1B6B34` |
+| `orange` | `#FF9F0A` | `#9A4E00` |
+| `pink` | `#FF6B9D` | `#9B2C55` |
+
+外觀與主題色是**這台裝置的顯示偏好**：由 `js/theme.js` 存在 localStorage（key `theme`），
+在 script 載入當下就寫到 `<html>` 的 `data-appearance` / `data-accent`，不進 `state`、不進 gist 備份、
+不進匯出檔（資料格式因此與 daily-tick 維持相容）。`<meta name="theme-color">` 會跟著底色更新。
+
+任務卡片的兩個色塊：左側 `--card-side-w`（60px，與 `--card-min-h` 同值才是正方形）用 `--c-card-side`
+（＝主題色），圓圈未完成時用 `--c-check`（＝卡片底色，像挖了一個洞），完成時翻成 `--c-check-done`
+（＝主文字色）並露出主題色的勾；右側就是卡片底色 `--c-surface`。卡片因為敘述變高時，左側會拉長成直立
+矩形，圓圈仍垂直居中。
+
 **全介面沒有任何邊框**，版面靠純色色塊與圓角切割；禁止漸層、rgba 透明、blur、模糊陰影。
-這幾條都有測試把關（`ui.test.mjs` 的「I. 版面與 tokens」會掃過所有元素檢查邊框與透明色）。
+這幾條都有測試把關（`ui.test.mjs` 的「I. 版面與 tokens」會掃過所有元素檢查邊框與透明色，
+「K. 卡片左右分割 / 外觀與主題色」在淺色模式下再掃一次）。
 
 ## 與規格的取捨
 
@@ -200,7 +229,13 @@ UI 測試預設 `executablePath: '/usr/bin/google-chrome'`，換環境時改掉�
 - **Modal 採全螢幕 sheet**：規格禁止半透明遮罩，所以不做浮層 + 遮罩，改成不透明整頁滑上來，
   順便讓輸入框固定在上方，鍵盤不會蓋住（另外仍用 `visualViewport` 把 `--kb-h` 餵給 sheet）。
 - **新增任務的 sheet 多了「每日／一般」切換**：預設為當前分頁，避免站在一般分頁只能新增每日任務。
-- **編輯模式點勾選框完全無反應**（不開 Modal，也不切換完成）；點卡片其他區域才開編輯 Modal。
+- **卡片點擊分兩側**：左側主題色方塊切換完成，右側文字區開編輯 Modal（一般模式與編輯模式皆然）。
+  編輯模式下點左側方塊完全無反應（不開 Modal，也不切換完成）。
+- **卡片的「分隔線」不是線**：規格禁止邊框，所以左右兩側靠兩個純色色塊的交界分開；淺色模式下右側是
+  純白、深色模式下是深灰卡片色。
+- **預設外觀是深色而非跟隨系統**：開機圖與 `theme-color` 都是純黑，冷啟動才不會閃色；而且加入主畫面時
+  iOS 會把 `apple-mobile-web-app-status-bar-style: black-translucent` 固定下來，淺色模式下狀態列
+  文字仍是白色。想要淺色的人自己在設定裡切。
 - **回到前景會強制退出編輯模式**，符合「編輯模式狀態不記憶」。
 - **SW 不用 `skipWaiting()`**：新內容在 fetch 階段比對後寫回同一份快取，避免使用中頁面的資源錯亂。
 - Toast 是 `pointer-events: none`，不會吃掉底下按鈕的點擊。
