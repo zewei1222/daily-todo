@@ -375,7 +375,13 @@ git checkout main && git reset --hard v10-stable && git push --force origin main
   拉回，那是「輸入框永遠在最上面」時代的假設；欄位變多（步驟、進度條在 sheet 底部）之後，iOS 為了露出輸入框
   把畫面往上推，我們又壓回去，欄位就被鍵盤蓋住、看不到自己打的字、也用不了複製貼上。現在改成
   **focus 當下自己把欄位捲到鍵盤上方**（`revealField`，在 `.sheet-body` 裡捲，不動 sheet），量到實測鍵盤高度後
-  再對一次；iOS 因此沒有理由搬畫面，就算搬了也不再干預。
+  再對一次；iOS 因此沒有理由搬畫面，就算搬了也不再干預。另外 `.sheet-body` 加了
+  `scroll-padding-bottom: calc(var(--kb-h) + 32px)`，瀏覽器自己做 scroll-into-view 時也會避開鍵盤那塊。
+- **為什麼不用「容器高度綁 `visualViewport.height`」那一派做法**（`interactive-widget=resizes-content`、`100dvh`）：
+  那在 Android 成立——Chrome 會真的縮 layout viewport。iOS Safari 到 18 都不支援 `interactive-widget`，鍵盤永遠
+  疊在畫面上、`visualViewport.resize` 要等鍵盤動畫**結束**才來一次：動畫期間 sheet 仍全高、欄位在鍵盤底下，
+  iOS 會先把 visual viewport 往上推，事件來了再縮 sheet 就跳一下，而且被推上去的位移不會自己回來，標題列會被切在
+  畫面外直到收鍵盤。`dvh` 反映的是動態工具列，跟鍵盤無關。
 - **不做子清單與難度**：難度在沒有經驗值系統時是沒有行為的欄位，子清單會讓卡片、手勢、統計都要
   重新設計。要加的時候升 `schema_version` 即可。
 

@@ -742,6 +742,9 @@ body { --fab-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-
      所以鍵盤滑上來的過程中畫面上沒有任何東西會移動。 */
   padding: var(--sp-5) var(--sp-4)
            calc(var(--sp-8) + var(--kb-h, 0px) + env(safe-area-inset-bottom));
+  /* 保險：就算是瀏覽器自己把焦點欄位捲入畫面（scrollIntoView / iOS 的 focus 行為），
+     也把鍵盤那塊當成不可視區域，欄位會停在鍵盤上方，跟 revealField 的目標一致。 */
+  scroll-padding-bottom: calc(var(--kb-h, 0px) + var(--sp-8));
 }
 .sheet-inner {
   max-width: var(--content-max);
