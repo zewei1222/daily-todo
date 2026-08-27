@@ -7,7 +7,7 @@
 <meta name="description" content="極簡重複待辦清單">
 <meta name="theme-color" content="#000000">
 <!-- 版本標記：與 sw.js 的 CACHE_VERSION 同號，App 靠它判斷有沒有新版 -->
-<meta name="app-version" content="7">
+<meta name="app-version" content="8">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -142,12 +142,16 @@
 <!-- 新增 / 編輯任務 -->
 <div class="sheet is-fade" id="sheet-task" hidden role="dialog" aria-modal="true">
 
+  <!-- 只有這一列釘在上面 -->
+  <div class="sheet-head is-hero">
+    <button class="btn-pill" data-act="cancel" type="button">取消</button>
+    <span class="sheet-title" id="sheet-task-title">新增日常任務</span>
+    <button class="btn-pill" data-act="save" id="btn-task-save" type="button">創建</button>
+  </div>
+
+  <div class="sheet-body is-flush">
+  <!-- 主色塊跟著內容捲 -->
   <div class="sheet-hero">
-    <div class="sheet-head">
-      <button class="btn-pill" data-act="cancel" type="button">取消</button>
-      <span class="sheet-title" id="sheet-task-title">新增日常任務</span>
-      <button class="btn-pill" data-act="save" id="btn-task-save" type="button">創建</button>
-    </div>
     <div class="hero-body">
       <div class="hero-field">
         <label class="hero-label" for="input-title">標題</label>
@@ -168,7 +172,6 @@
     </div>
   </div>
 
-  <div class="sheet-body">
     <div class="sheet-inner">
 
       <div class="group" id="group-type">
@@ -219,7 +222,7 @@
         <div class="group-row">
           <span class="row-label">目標進度</span>
           <input class="input is-inline" id="input-prog-target" type="number" min="1" step="1"
-                 inputmode="numeric" placeholder="例如 10">
+                 inputmode="numeric" placeholder="10">
         </div>
         <div class="group-row">
           <span class="row-label">每次增加</span>

@@ -141,7 +141,7 @@ button {
   min-height: var(--hit-min);
   background: var(--c-accent);
   color: var(--c-on-accent);
-  font-size: var(--fs-2);
+  font-size: var(--fs-field);
   font-weight: var(--fw-bold);
   appearance: none;
   -webkit-appearance: none;
@@ -575,14 +575,25 @@ body { --fab-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-
 }
 .sheet.is-fade.is-open { opacity: 1; }
 
-/* 模態上方的純色主色塊 */
+/* 模態上方的純色主色塊。
+   任務 sheet：只有標題列（取消／創建）釘在上面，主色塊裡的欄位跟著內容一起捲——
+   欄位多了（標題、敘述、標籤）再加鍵盤，釘死的話下面就滑不到。 */
 .sheet-hero {
   flex: 0 0 auto;
   background: var(--c-modal);
   border-radius: 0 0 var(--r-lg) var(--r-lg);
   padding-bottom: var(--sp-5);
 }
-.sheet-hero .sheet-title { color: var(--c-on-modal); }
+.sheet-hero .sheet-title,
+.sheet-head.is-hero .sheet-title { color: var(--c-on-modal); }
+.sheet-head.is-hero { background: var(--c-modal); }
+/* 主色塊在捲動區裡：捲動區本身不留內距，內距由主色塊與 .sheet-inner 各自負責 */
+.sheet-body.is-flush {
+  padding-top: 0; padding-left: 0; padding-right: 0;
+  /* 底部多留一顆 FAB 的高度，捲到底時 ＋ 不會壓住最後一個模塊 */
+  padding-bottom: calc(var(--fab-size) + var(--sp-8) + var(--kb-h, 0px) + env(safe-area-inset-bottom));
+}
+.sheet-body.is-flush > .sheet-inner { padding: var(--sp-5) var(--sp-4) 0; }
 
 .hero-body {
   max-width: var(--content-max);
@@ -701,7 +712,7 @@ textarea.input-pill {
   resize: none;
 }
 
-/* 深色輸入框（設定頁、日程） */
+/* 深色輸入框（設定頁、日程、進度條）。字級一律 ≥ 16px，否則 iOS focus 時會放大整頁 */
 .input {
   display: block;
   width: 100%;
@@ -710,7 +721,7 @@ textarea.input-pill {
   border-radius: var(--r-pill);
   background: var(--c-surface-2);
   color: var(--c-ink);
-  font-size: var(--fs-2);
+  font-size: var(--fs-field);
   appearance: none;
   -webkit-appearance: none;
 }
@@ -721,7 +732,7 @@ textarea.input {
   min-height: calc(var(--hit-min) * 2);
   border-radius: var(--r-md);
   font-family: var(--font-mono);
-  font-size: var(--fs-1);
+  font-size: var(--fs-field);
   resize: vertical;
 }
 

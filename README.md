@@ -249,7 +249,7 @@ node test/logic.test.js          # 純邏輯：日期、週期、連續期數、
 
 python3 test/serve.py            # 另開一個終端，掛在 /daily-todo/ 路徑
 cd test && npm i                 # 只裝 puppeteer-core，用系統的 google-chrome
-node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、進度條模塊（346 項）
+node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、進度條模塊、sheet 捲動（351 項）
 node sync.test.mjs               # 用假的 GitHub API 驗證備份流程 F1–F6、E5、軟刪除同步（33 項）
 ```
 
@@ -302,7 +302,11 @@ UI 測試預設 `executablePath: '/usr/bin/google-chrome'`，換環境時改掉�
 - **Sortable.js 改為本地檔案 + 延遲載入**（規格寫 CDN）：CDN 會讓離線時無法排序，且弱網下第一次進
   編輯模式要等。現在放在 `vendor/`，進 SW 快取，首屏完全不載入它。
 - **Modal 採全螢幕 sheet**：規格禁止半透明遮罩，所以不做浮層 + 遮罩，改成不透明整頁滑上來，
-  順便讓輸入框固定在上方，鍵盤不會蓋住（另外仍用 `visualViewport` 把 `--kb-h` 餵給 sheet）。
+  輸入框一開始就在上方，鍵盤不會蓋住（另外仍用 `visualViewport` 把 `--kb-h` 餵給 sheet）。
+  任務 sheet **只有標題列（取消／創建）釘住**，主色塊的欄位（標題、敘述、標籤）跟著內容一起捲——
+  欄位變多再加鍵盤後，釘死的 hero 會把可捲動區擠到滑不到下面的模塊。
+- **所有可輸入欄位字級 ≥ 16px**（`--fs-field`）：iOS Safari 對字級 < 16px 的欄位 focus 時會自動放大整頁，
+  而且放大後不會自己縮回去。
 - **新增任務的 sheet 多了「每日／一般」切換**：預設為當前分頁，避免站在一般分頁只能新增每日任務。
 - **編輯按鍵暫時隱藏、位置待定**：標題列左上角改為篩選（漏斗圖示），編輯模式的開關以
   `App.toggleEditMode()` 保留在程式裡，`index.html` 的 `#btn-edit` 加了 `hidden`，拿掉就回來。

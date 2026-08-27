@@ -1501,6 +1501,52 @@ group('O. 日常任務 sheet 的 ＋：輪盤加入進度條模塊、− 移除�
   await ctx.close();
 }
 
+group('P. 任務 sheet：欄位字級 ≥ 16px（iOS 不放大）、主色塊跟著捲、滑得到進度條模塊');
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(ctx);
+  await page.goto(URL, { waitUntil: 'load' });
+
+  eq('P1 所有可輸入欄位字級 ≥ 16px', await page.evaluate(() => {
+    const bad = [];
+    document.querySelectorAll('input:not([type="date"]):not([type="checkbox"]), textarea, select').forEach(el => {
+      const fs = parseFloat(getComputedStyle(el).fontSize);
+      if (fs < 16) bad.push((el.id || el.className) + ':' + fs);
+    });
+    return bad;
+  }), []);
+
+  await tapEl(page, '#fab'); await sleep(300);
+  const before = await page.evaluate(() => {
+    const body = document.querySelector('#sheet-task .sheet-body');
+    const hero = document.querySelector('#sheet-task .sheet-hero');
+    const head = document.querySelector('#sheet-task .sheet-head');
+    return { heroInBody: body.contains(hero), headOutsideBody: !body.contains(head), headTop: head.getBoundingClientRect().top,
+             heroTop: Math.round(hero.getBoundingClientRect().top), headBg: getComputedStyle(head).backgroundColor, heroBg: getComputedStyle(hero).backgroundColor,
+             titleTop: document.querySelector('#input-title').getBoundingClientRect().top };
+  });
+  ok('P2 主色塊在捲動區裡、標題列釘在外面', before.heroInBody && before.headOutsideBody && before.headTop === 0, before);
+  ok('P2 標題列與主色塊同色，且標題輸入框一開始就在上方', before.headBg === before.heroBg && before.titleTop < 200, before);
+
+  /* 加入進度條模塊後，把 sheet 捲到底：模塊完整在畫面內、主色塊已捲出畫面 */
+  await page.evaluate(() => { document.querySelector('#fab-opt-progress').click(); });
+  await sleep(300);
+  await page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
+  await page.evaluate(() => { const b = document.querySelector('#sheet-task .sheet-body'); b.scrollTop = b.scrollHeight; });
+  await sleep(150);
+  const after = await page.evaluate(() => {
+    const g = document.querySelector('#group-progress').getBoundingClientRect();
+    const hero = document.querySelector('#sheet-task .sheet-hero').getBoundingClientRect();
+    const head = document.querySelector('#sheet-task .sheet-head').getBoundingClientRect();
+    return { modTop: Math.round(g.top), modBottom: Math.round(g.bottom), h: innerHeight, heroBottom: Math.round(hero.bottom), headTop: head.top,
+             stepVisible: (() => { const r = document.querySelector('#input-prog-step').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })() };
+  });
+  ok('P3 捲到底後進度條模塊完整在畫面內', after.modTop >= 0 && after.modBottom <= after.h && after.stepVisible, after);
+  /* 內容不一定長到能把主色塊整個捲出去；捲動後它的底邊明顯上移即可（釘死時會停在 ~380） */
+  ok('P3 主色塊跟著捲走、標題列仍釘在上面', after.heroBottom < 300 && after.headTop === 0, after);
+  await ctx.close();
+}
+
 group('I. 版面與 tokens');
 {
   const ctx = await browser.createBrowserContext();

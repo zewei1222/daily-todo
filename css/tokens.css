@@ -68,6 +68,7 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --fs-1: 13px;   /* 註釋、次要資訊：比標題小 1~2 級 */
   --fs-2: 15px;
+  --fs-field: 16px;   /* 所有可輸入欄位的最小字級：iOS Safari 對 < 16px 的欄位 focus 時會自動放大頁面 */
   --fs-3: 17px;   /* 卡片標題 */
   --fs-4: 20px;
   --fs-5: 30px;
