@@ -1567,7 +1567,7 @@ group('Q. 步驟模塊：可多個、依加入順序、圓圈切換完成、只�
     const chk = m.querySelector('.step-check'), inp = m.querySelector('.step-title');
     return [!!chk, !!inp, m.querySelector('.btn-minus').textContent, chk.getBoundingClientRect().left < inp.getBoundingClientRect().left,
             chk.getAttribute('aria-pressed'), document.activeElement === inp];
-  }), [true, true, '−', true, 'false', true]);
+  }), [true, true, '−', true, 'false', false]);      /* 加模塊不自動 focus（不跳鍵盤） */
   await addMod('step');
   await addMod('progress');
   await addMod('step');
@@ -1718,11 +1718,15 @@ group('I2 鍵盤與可視區域');
   const padBottom = () => page.$eval('.sheet-body',
     b => Math.round(parseFloat(getComputedStyle(b).paddingBottom)));
 
-  /* 開啟 + focus 之後，sheet 幾何必須一動也不動（動了就會露出背後清單 → 看起來在晃） */
+  /* 開啟時不自動叫鍵盤；使用者點欄位 focus 之後，sheet 幾何必須一動也不動
+     （動了就會露出背後清單 → 看起來在晃） */
   await tapEl(page, '#fab');
   await sleep(30);
   eq('開啟第一帧就在最終位置、無位移動畫、滿高',
      await geo(), { transform: 'none', top: 0, h: 852 });
+  eq('開啟 sheet 不自動 focus、不預開鍵盤留白', [await page.evaluate(() => document.activeElement === document.body || document.activeElement === null), await kbVar()], [true, '0px']);
+  await tapEl(page, '#input-title');
+  await sleep(30);
   ok('focus 當下就先開好鍵盤留白（不等鍵盤動畫）',
      parseFloat(await kbVar()) > 300, await kbVar());
   ok('留白吃在內容區，不動 sheet 幾何', (await padBottom()) > 300, await padBottom());
@@ -1751,6 +1755,8 @@ group('I2 鍵盤與可視區域');
   await sleep(300);
   await page.evaluate(() => localStorage.setItem('kb_height', '336'));
   await tapEl(page, '#fab');
+  await sleep(30);
+  await tapEl(page, '#input-title');
   await sleep(30);
   eq('用實測鍵盤高度開留白', await kbVar(), '336px');
   eq('sheet 幾何仍然不變', await geo(), { transform: 'none', top: 0, h: 852 });

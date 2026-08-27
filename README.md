@@ -256,7 +256,7 @@ node test/logic.test.js          # 純邏輯：日期、週期、連續期數、
 
 python3 test/serve.py            # 另開一個終端，掛在 /daily-todo/ 路徑
 cd test && npm i                 # 只裝 puppeteer-core，用系統的 google-chrome
-node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、模塊（進度條／步驟）、sheet 捲動（367 項）
+node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、模塊（進度條／步驟）、sheet 捲動（368 項）
 node sync.test.mjs               # 用假的 GitHub API 驗證備份流程 F1–F6、E5、軟刪除同步（33 項）
 ```
 
@@ -312,6 +312,8 @@ UI 測試預設 `executablePath: '/usr/bin/google-chrome'`，換環境時改掉�
   輸入框一開始就在上方，鍵盤不會蓋住（另外仍用 `visualViewport` 把 `--kb-h` 餵給 sheet）。
   任務 sheet **只有標題列（取消／創建）釘住**，主色塊的欄位（標題、敘述、標籤）跟著內容一起捲——
   欄位變多再加鍵盤後，釘死的 hero 會把可捲動區擠到滑不到下面的模塊。
+- **開 sheet 與加模塊都不自動 focus**（搜尋列是唯一例外）：鍵盤一跳出來 iOS 就推畫面，跟留白補償的時間差
+  就是一下抖動；而且編輯既有任務多半是來改模塊而不是標題。要打字的人自己點欄位。
 - **所有可輸入欄位字級 ≥ 16px**（`--fs-field`）：iOS Safari 對字級 < 16px 的欄位 focus 時會自動放大整頁，
   而且放大後不會自己縮回去。
 - **新增任務的 sheet 多了「每日／一般」切換**：預設為當前分頁，避免站在一般分頁只能新增每日任務。

@@ -222,8 +222,7 @@
     var box = buildModule(type === 'progress' ? { type: 'progress' } : { type: 'step', title: '', done: false });
     modulesEl().appendChild(box);          /* 接在最後：先加的在上 */
     box.scrollIntoView({ block: 'nearest' });
-    var first = A.$('input', box);
-    if (first) first.focus();
+    /* 刻意不自動 focus：鍵盤一跳出來 iOS 就推畫面，要打字的人自己點欄位 */
   }
 
   function onModulesClick(e) {
@@ -304,8 +303,8 @@
     applyRepeatUi();
 
     openSheet(sheet);
-    input.focus();
-    if (task) input.setSelectionRange(input.value.length, input.value.length);
+    /* 不自動 focus 標題欄：開 sheet 就跳鍵盤會讓 iOS 推畫面、抖一下，而且編輯既有任務時
+       多半是來改模塊，不是改標題。要打字的人自己點欄位（搜尋列是唯一例外）。 */
   };
 
   function collectSheetFields() {
