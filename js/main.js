@@ -1059,9 +1059,29 @@
     var lockTimer = null;
     var queued = false;
 
-    function set(kb, top) {
+    function set(kb) {
       root.style.setProperty('--kb-h', Math.round(kb) + 'px');
-      root.style.setProperty('--vv-top', Math.round(top || 0) + 'px');
+    }
+
+    /* 把正在輸入的欄位捲到鍵盤上方（在 sheet 的捲動區裡捲，不動 sheet 本身）。
+       這樣 iOS 就沒有理由去搬可視區域；欄位在底部（步驟、進度條）也看得到自己在打什麼。 */
+    function revealField(el) {
+      if (!el || !el.getBoundingClientRect) return;
+      var body = el.closest('.sheet-body');
+      if (!body) return;
+      var kb = parseFloat(root.style.getPropertyValue('--kb-h')) || 0;
+      var margin = A.token('--sp-4', 16) * 2;
+      var limit = window.innerHeight - kb - margin;          /* 鍵盤上緣再留一點 */
+      var r = el.getBoundingClientRect();
+      if (r.bottom > limit) body.scrollTop += Math.ceil(r.bottom - limit);
+      else {
+        var top = body.getBoundingClientRect().top + margin;
+        if (r.top < top) body.scrollTop -= Math.ceil(top - r.top);
+      }
+    }
+    function revealActive() {
+      var a = document.activeElement;
+      if (isTextField(a) && a.closest && a.closest('.sheet')) revealField(a);
     }
 
     function remembered() {
@@ -1069,13 +1089,15 @@
       return isFinite(v) && v > MIN_KB ? v : 0;
     }
 
+    /* 量實際鍵盤高度。注意：這裡不再 scrollTo(0,0)、也不再用 --vv-top 把 sheet 拉回——
+       那會把 iOS 為了露出輸入框而做的位移壓回去，欄位就被鍵盤蓋住、看不到自己打的字。 */
     function measure() {
-      if (!vv) { set(0, 0); return; }
+      if (!vv) { set(0); return; }
       var kb = window.innerHeight - vv.height;
       if (kb < MIN_KB) kb = 0;
       else A.ls.set(A.LSK.kb, String(Math.round(kb)));
-      set(kb, vv.offsetTop);
-      if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+      set(kb);
+      revealActive();                                   /* 用實測值再對一次位置 */
     }
 
     function lock() {
@@ -1093,7 +1115,7 @@
 
     return {
       watch: function () {
-        if (!vv) { set(0, 0); return; }
+        if (!vv) { set(0); return; }
         vv.addEventListener('resize', onChange);
         vv.addEventListener('scroll', onChange);
         window.addEventListener('orientationchange', function () {
@@ -1103,12 +1125,13 @@
         measure();
       },
       /* 在 focus 的同一個 task 內呼叫：先把留白開好，讓 iOS 沒有捲動的理由 */
-      keyboardOpening: function () {
-        set(remembered() || Math.round(window.innerHeight * KB_GUESS_RATIO), 0);
+      keyboardOpening: function (el) {
+        set(remembered() || Math.round(window.innerHeight * KB_GUESS_RATIO));
+        revealField(el);                                /* 同一個 task 內就把欄位捲到鍵盤上方 */
         lock();
       },
       keyboardClosing: function () {
-        set(0, 0);
+        set(0);
         lock();
       }
     };
@@ -1393,7 +1416,7 @@
     /* 鍵盤：在 focus 的同一個 task 內就把 sheet 縮好 */
     document.addEventListener('focusin', function (e) {
       var t = e.target;
-      if (isTextField(t) && t.closest && t.closest('.sheet')) VP.keyboardOpening();
+      if (isTextField(t) && t.closest && t.closest('.sheet')) VP.keyboardOpening(t);
     });
     document.addEventListener('focusout', function (e) {
       var t = e.target;

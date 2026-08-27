@@ -256,7 +256,7 @@ node test/logic.test.js          # 純邏輯：日期、週期、連續期數、
 
 python3 test/serve.py            # 另開一個終端，掛在 /daily-todo/ 路徑
 cd test && npm i                 # 只裝 puppeteer-core，用系統的 google-chrome
-node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、模塊、sheet 捲動、Apple 式打磨、小面板與 token（418 項）
+node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、模塊、sheet 捲動、Apple 式打磨、小面板與 token、鍵盤露出欄位（420 項）
 node sync.test.mjs               # 用假的 GitHub API 驗證備份流程 F1–F6、E5、軟刪除同步（33 項）
 ```
 
@@ -371,6 +371,11 @@ git checkout main && git reset --hard v10-stable && git push --force origin main
 - **鍵盤期間 sheet 的幾何完全不變**：iOS 的 `visualViewport` 通報永遠慢一拍，跟著事件改高度會在
   鍵盤滑上來的過程中晃動，而且只要 sheet 變矮就會露出背後的清單。改為只把鍵盤高度餵給內容區的
   底部留白 `--kb-h`，並在 focus 當下就先用記住的鍵盤高度開好留白。
+- **不再把 iOS 的可視區域位移壓回去**（v13）：舊版在量到鍵盤後會 `scrollTo(0,0)` 並用 `--vv-top` 把 sheet
+  拉回，那是「輸入框永遠在最上面」時代的假設；欄位變多（步驟、進度條在 sheet 底部）之後，iOS 為了露出輸入框
+  把畫面往上推，我們又壓回去，欄位就被鍵盤蓋住、看不到自己打的字、也用不了複製貼上。現在改成
+  **focus 當下自己把欄位捲到鍵盤上方**（`revealField`，在 `.sheet-body` 裡捲，不動 sheet），量到實測鍵盤高度後
+  再對一次；iOS 因此沒有理由搬畫面，就算搬了也不再干預。
 - **不做子清單與難度**：難度在沒有經驗值系統時是沒有行為的欄位，子清單會讓卡片、手勢、統計都要
   重新設計。要加的時候升 `schema_version` 即可。
 

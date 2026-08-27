@@ -1972,11 +1972,31 @@ group('I2 鍵盤與可視區域');
      b => getComputedStyle(b).overflowY), 'auto');
   await sleep(500);
 
-  /* 保險：極少數情況 iOS 仍搬動可視區域時的補償 */
-  await page.evaluate(() => document.documentElement.style.setProperty('--vv-top', '40px'));
-  await sleep(50);
-  eq('iOS 若仍搬動可視區域，sheet 會補償回來',
-     await page.$eval('#sheet-task', s => Math.round(s.getBoundingClientRect().top)), 52);
+  /* 底部的欄位（步驟）focus 時：不把 iOS 的位移壓回去，改成自己把欄位捲到鍵盤上方 */
+  await page.evaluate(() => { for (let i = 0; i < 6; i++) document.querySelector('#btn-add-step').click(); });
+  await sleep(200);
+  const beforeReveal = await page.evaluate(() => {
+    const inputs = document.querySelectorAll('#modules .step-title');
+    const r = inputs[inputs.length - 1].getBoundingClientRect();
+    return { bottom: Math.round(r.bottom), h: innerHeight, scrollTop: document.querySelector('#sheet-task .sheet-body').scrollTop };
+  });
+  await page.evaluate(() => { const inputs = document.querySelectorAll('#modules .step-title'); inputs[inputs.length - 1].focus(); });
+  await sleep(60);
+  const reveal = await page.evaluate(() => {
+    const inputs = document.querySelectorAll('#modules .step-title');
+    const r = inputs[inputs.length - 1].getBoundingClientRect();
+    const kb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-h')) || 0;
+    return { bottom: Math.round(r.bottom), limit: innerHeight - kb, kb, focused: document.activeElement === inputs[inputs.length - 1],
+             sheetTop: Math.round(document.querySelector('#sheet-task').getBoundingClientRect().top) };
+  });
+  ok('底部欄位 focus 當下就被捲到鍵盤上方（欄位底邊 < 視窗高 − 鍵盤高）', reveal.focused && reveal.kb > 300 && reveal.bottom <= reveal.limit, { beforeReveal, reveal });
+  eq('sheet 本身沒有被拉動', reveal.sheetTop, 12);
+  await sleep(500);
+  ok('實測後（headless 無鍵盤）留白歸零，欄位仍在畫面內', await page.evaluate(() => {
+    const inputs = document.querySelectorAll('#modules .step-title');
+    const r = inputs[inputs.length - 1].getBoundingClientRect();
+    return getComputedStyle(document.documentElement).getPropertyValue('--kb-h').trim() === '0px' && r.top >= 0 && r.bottom <= innerHeight;
+  }));
   await ctx.close();
 }
 
