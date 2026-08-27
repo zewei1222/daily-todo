@@ -156,6 +156,48 @@
     el.classList.add('is-open');
   }
 
+  /* 卡片式 sheet 的下拉關閉：從標題列往下拖，超過 --pull-dismiss 放開＝關閉，否則彈回 */
+  A.dismissSheet = function (el) {
+    closeSheet(el);
+    if (el.id === 'sheet-task') editingId = null;
+  };
+
+  function attachPullDown(sheet) {
+    var head = A.$('.sheet-head', sheet);
+    if (!head) return;
+    var st = null;
+    head.addEventListener('pointerdown', function (e) {
+      if (!e.isPrimary || e.button > 0) return;
+      st = { id: e.pointerId, y0: e.clientY, dy: 0, moved: false };
+    });
+    head.addEventListener('pointermove', function (e) {
+      if (!st || e.pointerId !== st.id) return;
+      var dy = e.clientY - st.y0;
+      if (!st.moved && Math.abs(dy) < A.token('--swipe-tap-slop', 8)) return;
+      st.moved = true;
+      if (dy < 0) dy = 0;
+      st.dy = dy;
+      sheet.classList.add('is-dragging');
+      sheet.style.transform = 'translateY(' + dy + 'px)';
+      if (e.cancelable) e.preventDefault();
+    });
+    function end(e) {
+      if (!st || (e && e.pointerId !== st.id)) return;
+      var s = st;
+      st = null;
+      if (!s.moved) return;
+      sheet.classList.remove('is-dragging');
+      if (s.dy >= A.token('--pull-dismiss', 120)) {
+        A.dismissSheet(sheet);
+        setTimeout(function () { sheet.style.transform = ''; }, A.token('--dur-mid', 200) + 20);
+      } else {
+        sheet.style.transform = '';
+      }
+    }
+    head.addEventListener('pointerup', end);
+    head.addEventListener('pointercancel', end);
+  }
+
   function closeSheet(el) {
     if (sheetFab) sheetFab.close();
     dropKeyboard();
@@ -181,6 +223,72 @@
     });
     A.$('#interval-unit').textContent = UNIT_WORD[sheetUnit] || '天';
     A.$('#repeat-summary').textContent = A.repeatLabel(sheetRepeatPreview());
+  }
+
+  /* ---- 標籤 token 欄位：UI 是 token＋輸入框＋建議，資料來源仍是隱藏的 #input-tags（逗號分隔） ---- */
+  var tagList = [];
+
+  function syncTagsHidden() { A.$('#input-tags').value = tagList.join(', '); }
+
+  function renderTags() {
+    var host = A.$('#tag-tokens'), input = A.$('#input-tag-new');
+    A.$$('.token', host).forEach(function (t) { t.remove(); });
+    tagList.forEach(function (g) {
+      var tok = A.el('button', 'token');
+      tok.type = 'button';
+      tok.dataset.tag = g;
+      tok.setAttribute('aria-label', '移除標籤 ' + g);
+      tok.appendChild(A.el('span', null, g));
+      tok.appendChild(A.el('span', null, '✕'));
+      host.insertBefore(tok, input);
+    });
+    /* 建議：用過的標籤，扣掉已選的，最多 8 個 */
+    var sug = A.$('#tag-suggest');
+    sug.textContent = '';
+    var cands = A.allTags().filter(function (g) { return tagList.indexOf(g) < 0; }).slice(0, 8);
+    cands.forEach(function (g) {
+      var b = A.el('button', 'chip', g);
+      b.type = 'button';
+      b.dataset.tag = g;
+      sug.appendChild(b);
+    });
+    sug.hidden = !cands.length;
+    syncTagsHidden();
+  }
+
+  function setTags(list) { tagList = A.normTags(list); renderTags(); }
+
+  function addTagFromInput() {
+    var input = A.$('#input-tag-new');
+    var v = input.value;
+    input.value = '';
+    if (!A.normTags(v).length) return;
+    tagList = A.normTags(tagList.concat(A.normTags(v)));
+    renderTags();
+  }
+
+  function wireTagField() {
+    var host = A.$('#tag-tokens'), input = A.$('#input-tag-new');
+    host.addEventListener('click', function (e) {
+      var tok = e.target.closest('.token');
+      if (tok) { tagList = tagList.filter(function (g) { return g !== tok.dataset.tag; }); renderTags(); return; }
+      if (e.target === host) input.focus();
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ',' || e.key === '，' || e.key === '、') { e.preventDefault(); addTagFromInput(); return; }
+      if (e.key === 'Backspace' && !input.value && tagList.length) { tagList.pop(); renderTags(); }
+    });
+    input.addEventListener('input', function () {
+      /* 中文輸入法會直接送出「，」：一看到分隔符就切 */
+      if (/[,，、]/.test(input.value)) addTagFromInput();
+    });
+    input.addEventListener('blur', addTagFromInput);
+    A.$('#tag-suggest').addEventListener('click', function (e) {
+      var b = e.target.closest('.chip');
+      if (!b) return;
+      tagList = A.normTags(tagList.concat([b.dataset.tag]));
+      renderTags();
+    });
   }
 
   /* ---- 欄位錯誤：釘在欄位旁邊（而不是 toast），輸入時自動清掉 ---- */
@@ -235,6 +343,17 @@
     return i;
   }
 
+  /* −／＋ 夾著數字欄：Apple 會用 stepper 而不是要人打數字；仍可直接輸入 */
+  function stepper(input) {
+    var wrap = A.el('span', 'stepper');
+    var minus = A.el('button', 'step-btn', '−'); minus.type = 'button'; minus.dataset.step = '-1';
+    minus.setAttribute('aria-label', '減 1');
+    var plus = A.el('button', 'step-btn', '＋'); plus.type = 'button'; plus.dataset.step = '1';
+    plus.setAttribute('aria-label', '加 1');
+    wrap.appendChild(minus); wrap.appendChild(input); wrap.appendChild(plus);
+    return wrap;
+  }
+
   function buildModule(m) {
     var box = A.el('div', 'group module');
     box.dataset.type = m.type;
@@ -245,7 +364,7 @@
        ['每次增加', 'step', 1, null, m.step == null ? 1 : m.step]].forEach(function (r) {
         var row = A.el('div', 'group-row');
         row.appendChild(A.el('span', 'row-label', r[0]));
-        row.appendChild(numberInput(r[1], r[2], r[3], r[4]));
+        row.appendChild(stepper(numberInput(r[1], r[2], r[3], r[4])));
         box.appendChild(row);
       });
       box.appendChild(A.el('p', 'hint', '三個都要填才能建立／儲存；不需要就按右上角的 − 移除。'));
@@ -305,8 +424,18 @@
   function onModulesClick(e) {
     var box = e.target.closest('.module');
     if (!box) return;
-    var btn = e.target.closest('button[data-act]');
+    var btn = e.target.closest('button[data-act], button[data-step]');
     if (!btn) return;
+    if (btn.dataset.step) {
+      var inp = A.$('input', btn.closest('.stepper'));
+      var min = Number(inp.min) || 0;
+      var v = Math.round(Number(inp.value));
+      if (!isFinite(v)) v = min;
+      v = Math.max(min, v + Number(btn.dataset.step));
+      inp.value = String(v);
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
     if (btn.dataset.act === 'toggle') {
       var on = btn.getAttribute('aria-pressed') !== 'true';
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -385,7 +514,8 @@
     A.$('#group-type').hidden = !!task;              /* 既有任務不改類型 */
     input.value = task ? task.title : '';
     A.$('#input-note').value = task ? (task.note || '') : '';
-    A.$('#input-tags').value = task ? (task.tags || []).join(', ') : '';
+    setTags(task ? (task.tags || []) : []);
+    A.$('#input-tag-new').value = '';
 
     var r = task && task.type === 'daily' ? A.repeatRule(task) : { unit: 'day', interval: 1 };
     sheetUnit = r.unit;
@@ -403,6 +533,7 @@
   };
 
   function collectSheetFields() {
+    addTagFromInput();
     return {
       title: A.$('#input-title').value.trim(),
       note: A.$('#input-note').value.trim(),
@@ -1170,6 +1301,11 @@
           A.toast('已清除 ' + n + ' 筆');
         });
     });
+
+    /* 卡片式 sheet 可下拉關閉；標籤 token 欄位 */
+    attachPullDown(A.$('#sheet-task'));
+    attachPullDown(A.$('#sheet-settings'));
+    wireTagField();
 
     /* 任務 sheet */
     var taskSheet = A.$('#sheet-task');

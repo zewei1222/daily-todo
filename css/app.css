@@ -628,21 +628,38 @@ body { --fab-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-
 .fab-opt-icon { transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 
 /* ---------- Sheet ---------- */
+/* 卡片式 sheet：從安全區之下 --sheet-top 開始、上方圓角、頂端一根把手，可下拉關閉（main.js attachPullDown） */
 .sheet {
   position: fixed;
   left: 0;
   right: 0;
-  top: var(--vv-top, 0px);
-  height: 100%;
+  top: calc(var(--vv-top, 0px) + env(safe-area-inset-top) + var(--sheet-top));
+  height: calc(100% - env(safe-area-inset-top) - var(--sheet-top));
   z-index: 40;
   display: flex;
   flex-direction: column;
   background: var(--c-bg);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  overflow: hidden;
   transform: translateY(100%);
   transition: transform var(--dur-mid) var(--ease-out);
 }
 .sheet[hidden] { display: none; }
 .sheet.is-open { transform: translateY(0); }
+.sheet.is-dragging { transition: none; }
+.sheet::before {
+  content: "";
+  position: absolute;
+  top: var(--sp-2);
+  left: 50%;
+  width: var(--grabber-w);
+  height: var(--grabber-h);
+  margin-left: calc(var(--grabber-w) / -2);
+  border-radius: var(--r-pill);
+  background: var(--c-ink-2);
+  z-index: 1;
+  pointer-events: none;
+}
 
 /* 開啟後要立刻叫出鍵盤的 sheet 不做位移動畫：
    iOS 的 focus 必須發生在使用者手勢的同一個 task，不能等滑入動畫結束。
@@ -695,10 +712,11 @@ body { --fab-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: calc(var(--header-h) + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) var(--sp-4) 0;
+  height: var(--header-h);            /* sheet 已在安全區之下，不再加 safe-area */
+  padding: var(--sp-2) var(--sp-4) 0; /* 上方留把手的位置 */
+  touch-action: none;                 /* 下拉關閉要自己接 pointermove */
 }
-.sheet-title { font-size: var(--fs-3); }
+.sheet-title { font-size: var(--fs-3); top: 0; }
 
 /* 模態上的全圓角動作按鈕：純白底、深紫字 */
 .btn-pill {
@@ -1205,3 +1223,106 @@ textarea.input {
   color: var(--c-danger);
 }
 .hero-body .field-error { color: var(--c-on-modal); margin-left: var(--sp-3); }
+
+/* ---------- 小面板（篩選、排序）：從標題列底下展開的實色卡片，主頁仍看得到 ---------- */
+.popover {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.popover[hidden] { display: none; }
+.popover-shield { position: absolute; inset: 0; z-index: 0; }   /* 透明：點外面＝關閉；DOM 放在卡片之後 */
+.popover-card {
+  position: absolute;
+  z-index: 1;
+  top: calc(var(--header-h) + env(safe-area-inset-top) + var(--sp-2));
+  left: var(--sp-4);
+  right: var(--sp-4);
+  max-width: var(--content-max);
+  margin: 0 auto;
+  max-height: calc(100% - var(--header-h) - env(safe-area-inset-top) - var(--tab-h) - env(safe-area-inset-bottom) - var(--sp-8));
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+  border-radius: var(--r-lg);
+  transform-origin: top left;
+  transform: translateY(calc(var(--sp-2) * -1)) scale(0.96);
+  opacity: 0;
+  transition: transform var(--dur-mid) var(--ease-out), opacity var(--dur-mid) var(--ease-out);
+}
+.popover.is-open .popover-card { transform: none; opacity: 1; }
+.popover-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--hit-min);
+  padding: var(--sp-2) var(--sp-2) 0 var(--sp-4);
+}
+.popover-title { flex: 1 1 auto; font-size: var(--fs-3); font-weight: var(--fw-bold); }
+.popover-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+}
+/* 面板本身是 surface 色，裡面的群組退一階、控制項再退一階，層次才看得出來 */
+.popover .group { background: var(--c-surface-2); margin-bottom: var(--sp-2); }
+.popover .group:last-child { margin-bottom: 0; }
+.popover .input, .popover .chip, .popover .sort-option { background: var(--c-bg); }
+.popover .chip[aria-pressed="true"], .popover .sort-option[aria-pressed="true"] { background: var(--c-accent); }
+
+/* ---------- 標籤 token 欄位 ---------- */
+.tokens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: var(--input-h);
+  cursor: text;
+}
+.token {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: var(--token-h);
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--c-on-accent);
+  color: var(--c-accent);
+  font-size: var(--fs-2);
+  font-weight: var(--fw-bold);
+}
+.token > span { line-height: 1; }
+.token-input {
+  flex: 1 1 6em;
+  min-width: 6em;
+  min-height: var(--token-h);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  font-size: var(--fs-3);
+}
+.token-input::placeholder { color: var(--c-hint-accent); }
+.tag-suggest { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-2) 0 0 var(--sp-3); }
+.tag-suggest[hidden] { display: none; }
+.tag-suggest .chip { min-height: var(--token-h); background: var(--c-on-modal); color: var(--c-modal); font-size: var(--fs-1); }
+
+/* ---------- 進度條 stepper：−／＋ 夾著數字欄 ---------- */
+.stepper { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.step-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-min);
+  height: var(--hit-min);
+  border-radius: var(--r-pill);
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-size: var(--fs-4);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+.step-btn:active { transform: scale(var(--press-scale)); background: var(--c-accent); color: var(--c-on-accent); }
+.stepper .input.is-inline { width: calc(var(--hit-min) * 1.4); padding-left: var(--sp-2); padding-right: var(--sp-2); }

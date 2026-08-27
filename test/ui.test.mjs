@@ -1535,7 +1535,7 @@ group('P. 任務 sheet：欄位字級 ≥ 16px（iOS 不放大）、主色塊跟
   await sleep(300);
   eq('P1 所有可輸入欄位字級 ≥ 16px（含動態產生的模塊欄位）', await page.evaluate(() => {
     const bad = [];
-    document.querySelectorAll('input:not([type="date"]):not([type="checkbox"]), textarea, select').forEach(el => {
+    document.querySelectorAll('input:not([type="date"]):not([type="checkbox"]):not([type="hidden"]), textarea, select').forEach(el => {
       const fs = parseFloat(getComputedStyle(el).fontSize);
       if (fs < 16) bad.push((el.id || el.className) + ':' + fs);
     });
@@ -1545,11 +1545,12 @@ group('P. 任務 sheet：欄位字級 ≥ 16px（iOS 不放大）、主色塊跟
     const body = document.querySelector('#sheet-task .sheet-body');
     const hero = document.querySelector('#sheet-task .sheet-hero');
     const head = document.querySelector('#sheet-task .sheet-head');
-    return { heroInBody: body.contains(hero), headOutsideBody: !body.contains(head), headTop: head.getBoundingClientRect().top,
+    const sheetTop = document.querySelector('#sheet-task').getBoundingClientRect().top;
+    return { heroInBody: body.contains(hero), headOutsideBody: !body.contains(head), headTop: Math.round(head.getBoundingClientRect().top - sheetTop),
              headBg: getComputedStyle(head).backgroundColor, heroBg: getComputedStyle(hero).backgroundColor,
              titleTop: document.querySelector('#input-title').getBoundingClientRect().top };
   });
-  ok('P2 主色塊在捲動區裡、標題列釘在外面', before.heroInBody && before.headOutsideBody && before.headTop === 0, before);
+  ok('P2 主色塊在捲動區裡、標題列釘在 sheet 頂端', before.heroInBody && before.headOutsideBody && before.headTop === 0, before);
   ok('P2 標題列與主色塊同色，且標題輸入框一開始就在上方', before.headBg === before.heroBg && before.titleTop < 200, before);
 
   await page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
@@ -1559,8 +1560,9 @@ group('P. 任務 sheet：欄位字級 ≥ 16px（iOS 不放大）、主色塊跟
     const g = document.querySelector('#modules .module[data-type="progress"]').getBoundingClientRect();
     const hero = document.querySelector('#sheet-task .sheet-hero').getBoundingClientRect();
     const head = document.querySelector('#sheet-task .sheet-head').getBoundingClientRect();
+    const sheetTop = document.querySelector('#sheet-task').getBoundingClientRect().top;
     const st = document.querySelector('#modules [data-field="step"]').getBoundingClientRect();
-    return { modTop: Math.round(g.top), modBottom: Math.round(g.bottom), h: innerHeight, heroBottom: Math.round(hero.bottom), headTop: head.top,
+    return { modTop: Math.round(g.top), modBottom: Math.round(g.bottom), h: innerHeight, heroBottom: Math.round(hero.bottom), headTop: Math.round(head.top - sheetTop),
              stepVisible: st.top >= 0 && st.bottom <= innerHeight };
   });
   ok('P3 捲到底後進度條模塊完整在畫面內', after.modTop >= 0 && after.modBottom <= after.h && after.stepVisible, after);
@@ -1746,6 +1748,100 @@ group('R. Apple 式打磨：副標、復原、編輯橫幅、看得見的入口�
   await ctx.close();
 }
 
+group('S. 小面板（篩選／排序）、卡片式 sheet 下拉關閉、標籤 token、進度 stepper');
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(ctx);
+  await page.goto(URL, { waitUntil: 'load' });
+  await addTask(page, 'daily', '喝水', { tags: '健康' });
+  await addTask(page, 'daily', '晨跑', { tags: '健康, 戶外' });
+
+  /* 篩選：小面板，不蓋整頁 */
+  await tapEl(page, '#btn-filter'); await sleep(300);
+  const pop = await page.evaluate(() => {
+    const p = document.querySelector('#sheet-filter'), card = p.querySelector('.popover-card').getBoundingClientRect();
+    const btn = document.querySelector('#btn-filter').getBoundingClientRect();
+    const firstCard = document.querySelector('#list-daily .card').getBoundingClientRect();
+    return { isPopover: p.classList.contains('popover') && !p.classList.contains('sheet'), open: p.classList.contains('is-open'),
+             belowHeader: card.top >= btn.bottom, notFull: card.height < innerHeight * 0.85 && card.bottom < innerHeight - 56,
+             headerVisible: !!document.elementFromPoint(btn.left + 10, btn.top + 10),
+             cardBg: getComputedStyle(p.querySelector('.popover-card')).backgroundColor };
+  });
+  ok('S1 篩選是標題列底下的小面板，不是整頁 sheet', pop.isPopover && pop.open && pop.belowHeader && pop.notFull, pop);
+  eq('S1 面板是實色卡片', pop.cardBg, 'rgb(28, 28, 30)');
+  await tapEl(page, '#filter-tags .chip[data-tag="戶外"]'); await sleep(300);
+  eq('S1 面板開著時主頁清單同步過濾（看得到）', await titles(page, 'daily'), ['晨跑']);
+  await page.touchscreen.tap(30, 800); await sleep(350);
+  eq('S1 點面板外關閉', await page.$eval('#sheet-filter', p => p.hidden), true);
+  await page.evaluate(() => App.clearFilters());
+
+  /* 排序：小面板 */
+  await tapEl(page, '#btn-sort'); await sleep(300);
+  eq('S2 排序也是小面板', await page.evaluate(() => { const p = document.querySelector('#sheet-sort'); return [p.classList.contains('popover'), !p.hidden, p.querySelector('.popover-card').getBoundingClientRect().height < innerHeight * 0.6]; }), [true, true, true]);
+  await tapEl(page, '#sheet-sort .btn-icon[data-act="close"]'); await sleep(350);
+  eq('S2 ✕ 關閉', await page.$eval('#sheet-sort', p => p.hidden), true);
+
+  /* 卡片式 sheet：頂端留白、把手、下拉關閉 */
+  await tapEl(page, '#fab'); await sleep(300);
+  const card = await page.evaluate(() => {
+    const s = document.querySelector('#sheet-task'), r = s.getBoundingClientRect(), cs = getComputedStyle(s);
+    const grab = getComputedStyle(s, '::before');
+    return { top: Math.round(r.top), radius: cs.borderTopLeftRadius, grabberW: grab.width, grabberH: grab.height };
+  });
+  eq('S3 sheet 從頂端 12px 開始、上方圓角、有把手', card, { top: 12, radius: '24px', grabberW: '36px', grabberH: '5px' });
+  const head = await page.$eval('#sheet-task .sheet-head', h => { const r = h.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.touchscreen.touchStart(head.x, head.y);
+  for (let i = 1; i <= 6; i++) { await page.touchscreen.touchMove(head.x, head.y + 60 * i / 6); await sleep(16); }
+  const midDrag = await page.$eval('#sheet-task', s => s.style.transform);
+  await page.touchscreen.touchEnd(); await sleep(350);
+  ok('S3 拖一點：sheet 跟手位移', /translateY\(\d+px\)/.test(midDrag), midDrag);
+  eq('S3 不到門檻放開：彈回、仍開著', await page.evaluate(() => [document.querySelector('#sheet-task').hidden, document.querySelector('#sheet-task').style.transform]), [false, '']);
+  await page.touchscreen.touchStart(head.x, head.y);
+  for (let i = 1; i <= 8; i++) { await page.touchscreen.touchMove(head.x, head.y + 200 * i / 8); await sleep(16); }
+  await page.touchscreen.touchEnd(); await sleep(400);
+  eq('S3 下拉超過門檻放開：sheet 關閉', await page.$eval('#sheet-task', s => s.hidden), true);
+
+  /* 標籤 token 欄位（快速拖曳剛結束時 headless Chrome 偶爾吃掉下一個觸控 tap，這裡用 click 重開，不測 FAB） */
+  await sleep(300);
+  await page.evaluate(() => document.querySelector('#fab').click()); await sleep(300);
+  eq('S4 sheet 重新開啟', await page.$eval('#sheet-task', s => s.hidden), false);
+  eq('S4 有用過的標籤當建議', await page.$$eval('#tag-suggest .chip', cs => cs.map(c => c.textContent).sort()), ['健康', '戶外']);
+  await tapEl(page, '#tag-suggest .chip[data-tag="健康"]'); await sleep(150);
+  await page.$eval('#input-tag-new', i => { i.focus(); i.value = '早晨'; });
+  await page.keyboard.press('Enter'); await sleep(150);
+  await page.$eval('#input-tag-new', i => { i.value = '戶外，'; i.dispatchEvent(new Event('input', { bubbles: true })); }); await sleep(150);
+  eq('S4 建議點一下變 token；return／全形逗號都會切成 token', await page.evaluate(() => [
+     Array.from(document.querySelectorAll('#tag-tokens .token')).map(t => t.dataset.tag), document.querySelector('#input-tags').value,
+     document.querySelector('#input-tag-new').value, Array.from(document.querySelectorAll('#tag-suggest .chip')).map(c => c.textContent)]),
+     [['健康', '早晨', '戶外'], '健康, 早晨, 戶外', '', []]);
+  await tapEl(page, '#tag-tokens .token[data-tag="早晨"]'); await sleep(150);
+  eq('S4 點 token 移除', await page.$eval('#input-tags', i => i.value), '健康, 戶外');
+  await page.$eval('#input-tag-new', i => { i.focus(); });
+  await page.keyboard.press('Backspace'); await sleep(100);
+  eq('S4 空輸入框按退格：移掉最後一個 token', await page.$eval('#input-tags', i => i.value), '健康');
+  await page.$eval('#input-title', i => { i.value = '散步'; });
+  await page.$eval('#input-tag-new', i => { i.value = '未切'; });     /* 沒按 return 就儲存，也要收 */
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('S4 儲存時輸入框裡沒切的字也收進去', await page.evaluate(() => App.activeTasks('daily').find(t => t.title === '散步').tags), ['健康', '未切']);
+  await tapEl(page, '#list-daily .row[data-id="' + await page.evaluate(() => App.activeTasks('daily').find(t => t.title === '散步').id) + '"] .card-body'); await sleep(300);
+  eq('S4 編輯帶回 token', await page.$$eval('#tag-tokens .token', ts => ts.map(t => t.dataset.tag)), ['健康', '未切']);
+
+  /* 進度 stepper */
+  await page.evaluate(() => document.querySelector('#btn-add-progress').click()); await sleep(200);
+  const F = k => '#modules .module[data-type="progress"] [data-field="' + k + '"]';
+  eq('S5 每個數字欄兩側有 −／＋（44pt）', await page.evaluate(() => Array.from(document.queryGetAll ? [] : document.querySelectorAll('#modules .stepper')).map(w => {
+     const bs = w.querySelectorAll('.step-btn'); const r = bs[0].getBoundingClientRect(); return [bs.length, Math.round(r.width), Math.round(r.height)]; })), [[2, 44, 44], [2, 44, 44], [2, 44, 44]]);
+  const plusTarget = (await page.$$('#modules .module[data-type="progress"] .stepper'))[1];
+  await (await plusTarget.$$('.step-btn'))[1].evaluate(b => { b.click(); b.click(); b.click(); });
+  await (await (await page.$$('#modules .module[data-type="progress"] .stepper'))[0].$$('.step-btn'))[0].evaluate(b => b.click());
+  eq('S5 ＋ 三下 → 目標 3；空的目前欄按 − 停在下限 0', await page.evaluate(() => [document.querySelector('#modules [data-field="target"]').value, document.querySelector('#modules [data-field="current"]').value]), ['3', '0']);
+  await (await (await page.$$('#modules .module[data-type="progress"] .stepper'))[2].$$('.step-btn'))[0].evaluate(b => { b.click(); b.click(); });
+  eq('S5 每次增加不會低於 1', await page.$eval('#modules [data-field="step"]', i => i.value), '1');
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('S5 stepper 設定的值存進去', await page.evaluate(() => App.taskProgress(App.activeTasks('daily').find(t => t.title === '散步'))), { type: 'progress', current: 0, target: 3, step: 1 });
+  await ctx.close();
+}
+
 group('I. 版面與 tokens');
 {
   const ctx = await browser.createBrowserContext();
@@ -1834,8 +1930,8 @@ group('I2 鍵盤與可視區域');
      （動了就會露出背後清單 → 看起來在晃） */
   await tapEl(page, '#fab');
   await sleep(30);
-  eq('開啟第一帧就在最終位置、無位移動畫、滿高',
-     await geo(), { transform: 'none', top: 0, h: 852 });
+  eq('開啟第一帧就在最終位置、無位移動畫、卡片式（頂端留 --sheet-top）',
+     await geo(), { transform: 'none', top: 12, h: 840 });
   eq('開啟 sheet 不自動 focus、不預開鍵盤留白', [await page.evaluate(() => document.activeElement === document.body || document.activeElement === null), await kbVar()], [true, '0px']);
   await tapEl(page, '#input-title');
   await sleep(30);
@@ -1855,12 +1951,12 @@ group('I2 鍵盤與可視區域');
     window.visualViewport.dispatchEvent(new Event('resize'));
   });
   await sleep(80);
-  eq('動畫期間 sheet 幾何不變', await geo(), { transform: 'none', top: 0, h: 852 });
+  eq('動畫期間 sheet 幾何不變', await geo(), { transform: 'none', top: 12, h: 840 });
   ok('動畫期間留白不變', parseFloat(await kbVar()) > 300, await kbVar());
 
   await sleep(500);
   eq('鎖定到期後量測真值（headless 無鍵盤 → 0）', await kbVar(), '0px');
-  eq('全程 sheet 幾何未變', await geo(), { transform: 'none', top: 0, h: 852 });
+  eq('全程 sheet 幾何未變', await geo(), { transform: 'none', top: 12, h: 840 });
 
   /* 第二次起用實測鍵盤高度，預測即實測 */
   await tapEl(page, '#sheet-task [data-act="cancel"]');
@@ -1871,7 +1967,7 @@ group('I2 鍵盤與可視區域');
   await tapEl(page, '#input-title');
   await sleep(30);
   eq('用實測鍵盤高度開留白', await kbVar(), '336px');
-  eq('sheet 幾何仍然不變', await geo(), { transform: 'none', top: 0, h: 852 });
+  eq('sheet 幾何仍然不變', await geo(), { transform: 'none', top: 12, h: 840 });
   eq('sheet 內容區可捲動', await page.$eval('.sheet-body',
      b => getComputedStyle(b).overflowY), 'auto');
   await sleep(500);
@@ -1880,7 +1976,7 @@ group('I2 鍵盤與可視區域');
   await page.evaluate(() => document.documentElement.style.setProperty('--vv-top', '40px'));
   await sleep(50);
   eq('iOS 若仍搬動可視區域，sheet 會補償回來',
-     await page.$eval('#sheet-task', s => Math.round(s.getBoundingClientRect().top)), 40);
+     await page.$eval('#sheet-task', s => Math.round(s.getBoundingClientRect().top)), 52);
   await ctx.close();
 }
 

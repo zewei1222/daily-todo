@@ -256,7 +256,7 @@ node test/logic.test.js          # 純邏輯：日期、週期、連續期數、
 
 python3 test/serve.py            # 另開一個終端，掛在 /daily-todo/ 路徑
 cd test && npm i                 # 只裝 puppeteer-core，用系統的 google-chrome
-node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、模塊、sheet 捲動、Apple 式打磨（397 項）
+node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、模塊、sheet 捲動、Apple 式打磨、小面板與 token（418 項）
 node sync.test.mjs               # 用假的 GitHub API 驗證備份流程 F1–F6、E5、軟刪除同步（33 項）
 ```
 
@@ -331,8 +331,17 @@ git checkout main && git reset --hard v10-stable && git push --force origin main
 | Dynamic Type | `html { font: -apple-system-body }`，字級 token 全改 rem | 使用者調大系統字體，App 跟著大；非 Apple 平台維持 17px |
 | 動態 | `--ease-out` 改 iOS 系統曲線 `cubic-bezier(0.32, 0.72, 0, 1)` | 快出慢收的手感 |
 
-沒做（下一批候選）：長按卡片直接拖曳排序（廢掉編輯模式）、卡片式 sheet＋下拉關閉、標籤 token 欄位、進度 stepper、
-逐筆合併的同步、淺色開機圖。
+### v12：小面板、卡片式 sheet、token、stepper
+
+| 改動 | 說明 |
+|---|---|
+| **篩選／排序改成小面板** | 從標題列按鍵底下展開的實色卡片（`.popover`），不蓋整頁，主頁清單在下面同步變化；點外面或 ✕ 關閉。面板本身 `--c-surface`，裡面的群組退一階（`--c-surface-2`）、控制項再退一階（`--c-bg`），沒有邊框也看得出層次 |
+| **卡片式 sheet ＋ 下拉關閉** | 任務／設定 sheet 從安全區之下 `--sheet-top`（12px）開始、上方圓角、頂端一根把手；從標題列往下拖跟手位移，超過 `--pull-dismiss`（120px）放開＝關閉，不到就彈回（`attachPullDown`）。標題列 `touch-action: none` 才接得到 pointermove |
+| **標籤 token 欄位** | 已選的標籤是一顆顆 token（點 ✕ 移除），輸入後按逗號／全形逗號／頓號／return 切成 token，空輸入框按退格移掉最後一顆；下方列出用過的標籤當建議（最多 8 個）。儲存時輸入框裡沒切的字也會收。隱藏的 `#input-tags`（逗號分隔）仍是資料來源，`collectSheetFields` 不用改 |
+| **進度 stepper** | 進度條三個數字欄兩側各一顆 −／＋（44pt），尊重下限；仍可直接打字 |
+
+還沒做：長按卡片直接拖曳排序（要跟左滑、點擊、Sortable 三套手勢協調，需要在真機上調，先保留編輯順序模式＋橫幅）、
+逐筆合併的同步（資料層改動，另開一批）、淺色開機圖（預設外觀是深色，暫不需要）。
 
 ## 與規格的取捨
 

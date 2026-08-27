@@ -124,6 +124,11 @@
   --settle-delay: 1500ms;  /* 勾選後停留多久才沉底／浮上（給人看到勾、可反悔） */
   --undo-ms:      5000ms;  /* 刪除後「復原」提示停留時間 */
   --nudge-dur:    260ms;   /* 編輯順序模式點卡片的微晃 */
+  --sheet-top:    12px;    /* 卡片式 sheet 離頂端（安全區之下）的距離 */
+  --grabber-w:    36px;    /* sheet 頂端的把手 */
+  --grabber-h:    5px;
+  --pull-dismiss: 120px;   /* 下拉超過這個距離放開＝關閉 sheet */
+  --token-h:      32px;    /* 標籤 token 高度 */
 
   /* ---- 執行期由 JS 覆寫（visualViewport） ----
      --kb-h  鍵盤高度，只用於內容區的底部留白

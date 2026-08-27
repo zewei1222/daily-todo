@@ -7,7 +7,7 @@
 <meta name="description" content="極簡重複待辦清單">
 <meta name="theme-color" content="#000000">
 <!-- 版本標記：與 sw.js 的 CACHE_VERSION 同號，App 靠它判斷有沒有新版 -->
-<meta name="app-version" content="11">
+<meta name="app-version" content="12">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -173,10 +173,16 @@
                   autocomplete="off" autocapitalize="sentences"></textarea>
       </div>
       <div class="hero-field">
-        <label class="hero-label" for="input-tags">標籤</label>
-        <input class="input-pill" id="input-tags" type="text" maxlength="200"
-               autocomplete="off" autocapitalize="none" enterkeyhint="done"
-               placeholder="以逗號分隔，例如：家務, 健康">
+        <label class="hero-label" for="input-tag-new">標籤</label>
+        <!-- token 欄位：已選的標籤是一顆顆 token（點 ✕ 移除），輸入後按逗號或 return 加入；
+             下方列出用過的標籤當建議。隱藏的 #input-tags 仍是儲存時讀的值（逗號分隔）。 -->
+        <div class="tokens input-pill" id="tag-tokens">
+          <input class="token-input" id="input-tag-new" type="text" maxlength="20"
+                 autocomplete="off" autocapitalize="none" enterkeyhint="done"
+                 placeholder="輸入後按逗號或 return">
+        </div>
+        <div class="tag-suggest" id="tag-suggest" hidden></div>
+        <input type="hidden" id="input-tags">
       </div>
     </div>
   </div>
@@ -255,15 +261,15 @@
   </div>
 </div>
 
-<!-- 篩選 -->
-<div class="sheet" id="sheet-filter" hidden role="dialog" aria-modal="true">
-  <div class="sheet-head">
-    <button class="btn-text head-l" data-act="close" type="button">返回</button>
-    <span class="sheet-title">篩選</span>
-    <button class="btn-text head-r" id="btn-filter-reset" type="button">清除</button>
-  </div>
-  <div class="sheet-body">
-    <div class="sheet-inner">
+<!-- 篩選：從標題列底下展開的小面板，主頁仍看得到；點外面或 ✕ 關閉 -->
+<div class="popover" id="sheet-filter" hidden role="dialog" aria-modal="true" aria-labelledby="filter-title">
+  <div class="popover-card">
+    <div class="popover-head">
+      <span class="popover-title" id="filter-title">篩選</span>
+      <button class="btn-text" id="btn-filter-reset" type="button">清除</button>
+      <button class="btn-icon" data-act="close" type="button" aria-label="關閉">✕</button>
+    </div>
+    <div class="popover-body">
 
       <div class="group">
         <span class="group-title">名稱</span>
@@ -291,23 +297,20 @@
           日常任務看到期日是否落在區間內，一般任務看建立日或完成日。</p>
       </div>
 
-      <p class="hint">篩選只影響清單顯示，是這台裝置的檢視狀態，不會進備份。編輯模式一律顯示全部。</p>
-
     </div>
   </div>
+  <div class="popover-shield" data-act="close"></div>
 </div>
 
-<!-- 排序 -->
-<div class="sheet" id="sheet-sort" hidden role="dialog" aria-modal="true">
-  <div class="sheet-head">
-    <button class="btn-text head-l" data-act="close" type="button">返回</button>
-    <span class="sheet-title">排序</span>
-    <span class="head-r"></span>
-  </div>
-  <div class="sheet-body">
-    <div class="sheet-inner">
+<!-- 排序：小面板 -->
+<div class="popover" id="sheet-sort" hidden role="dialog" aria-modal="true" aria-labelledby="sort-title">
+  <div class="popover-card">
+    <div class="popover-head">
+      <span class="popover-title" id="sort-title">排序</span>
+      <button class="btn-icon" data-act="close" type="button" aria-label="關閉">✕</button>
+    </div>
+    <div class="popover-body">
       <div class="group">
-        <span class="group-title">排序方式</span>
         <div class="sort-options" id="sort-options">
           <button class="sort-option" type="button" data-by="created" aria-pressed="false">
             <span class="sort-name">建立日期</span><span class="sort-dir"></span>
@@ -320,11 +323,11 @@
           </button>
         </div>
         <p class="hint">再點一次目前的排序方式，就切換正序／倒序。「字母」數字在前、英文其次、中文依筆畫；
-          「自訂順序」是編輯模式裡拖曳出來的順序。</p>
+          「自訂順序」是編輯順序模式裡拖曳出來的順序。</p>
       </div>
-      <p class="hint">排序只影響清單顯示，是這台裝置的檢視狀態，不會進備份。編輯模式一律用自訂順序。</p>
     </div>
   </div>
+  <div class="popover-shield" data-act="close"></div>
 </div>
 
 <!-- 設定 -->
