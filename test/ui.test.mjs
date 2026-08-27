@@ -93,9 +93,11 @@ group('D. 手勢：點擊 / 左滑刪除');
 
   await tapEl(page, '#list-daily .row:first-child .check');
   await sleep(300);
-  eq('D1 點勾選框即完成', await page.$eval('#list-daily .row:last-child .card',
+  eq('D1 點勾選框即完成', await page.$eval('#list-daily .row:first-child .card',
      c => c.classList.contains('is-done')), true);
-  eq('C1 已完成沉底', await titles(page, 'daily'), ['運動', '喝水']);
+  eq('C1 勾完先停在原位（給人看到勾、可反悔）', await titles(page, 'daily'), ['喝水', '運動']);
+  await sleep(1600);
+  eq('C1 --settle-delay 後已完成沉底', await titles(page, 'daily'), ['運動', '喝水']);
   eq('B 勾選後出現連續期數 1', await page.$eval('#list-daily .row:last-child .badge',
      s => s.hidden ? null : s.textContent), '1');
 
@@ -107,8 +109,8 @@ group('D. 手勢：點擊 / 左滑刪除');
   await tapEl(page, '#sheet-task [data-act="cancel"]');
   await sleep(300);
   await tapEl(page, '#list-daily .row:last-child .card-side');
-  await sleep(300);
-  eq('D1b 點左側色塊取消完成', await titles(page, 'daily'), ['喝水', '運動']);
+  await sleep(1800);
+  eq('D1b 點左側色塊取消完成（停留後浮回）', await titles(page, 'daily'), ['喝水', '運動']);
   eq('B1 未完成不顯示數字', await page.$eval('#list-daily .row:first-child .badge',
      s => s.hidden), true);
 
@@ -189,8 +191,8 @@ group('C / 編輯模式');
   await addTask(page, 'daily', 'a');
   await addTask(page, 'daily', 'b');
   await addTask(page, 'daily', 'c');
-  await tapEl(page, '#list-daily .row:nth-child(2) .card-side');   /* b 完成 → 沉底 */
-  await sleep(300);
+  await tapEl(page, '#list-daily .row:nth-child(2) .card-side');   /* b 完成 → 停留後沉底 */
+  await sleep(1800);
   eq('C1 中間任務沉底', await titles(page, 'daily'), ['a', 'c', 'b']);
 
   eq('編輯模式前未載入 Sortable', await page.evaluate(() => typeof window.Sortable), 'undefined');
@@ -299,6 +301,9 @@ group('C7 新增 / 一般分頁 / H 清除已完成');
   eq('H1 出現清除已完成', await page.$eval('#foot-general', e => e.hidden), false);
 
   await tapEl(page, '#btn-clear-done');
+  await sleep(300);
+  eq('H2 出現 App 內確認卡（不是瀏覽器 confirm）', await page.evaluate(() => [document.querySelector('#confirm').hidden, page => 0][0]), false);
+  await tapEl(page, '#confirm-ok');
   await sleep(350);
   eq('H2 只清掉已完成的一般任務', await titles(page, 'general'), ['g2']);
   eq('H2 每日任務不受影響',
@@ -385,6 +390,8 @@ group('G. 匯入匯出');
     });
   });
   await tapEl(page, '#btn-import');
+  await sleep(300);
+  await tapEl(page, '#confirm-ok');
   await sleep(400);
   eq('G5 匯入後資料被覆蓋', await titles(page, 'daily'), ['匯入的']);
   eq('G5 設定一併覆蓋', await page.evaluate(() => App.state.settings.reset_hour), 5);
@@ -461,7 +468,7 @@ group('註釋 / 日程 / 週期（新功能）');
   await sleep(150);
   eq('非到期日就不出現', await titles(page, 'daily'), []);
   eq('清單空時顯示「今天沒有到期」', await page.$eval('#empty-daily',
-     e => e.hidden ? null : e.textContent), '今天沒有到期的日常任務。');
+     e => e.hidden ? null : e.querySelector('.empty-text').textContent), '今天沒有到期的日常任務。');
 
   /* 一般任務不顯示日程 */
   await tapEl(page, '#fab');
@@ -674,6 +681,8 @@ group('軟刪除：SOFT_DELETE_TASK.md 的 16 項驗收');
   await sleep(250);
   const dailyBefore = await page.evaluate(() => App.activeTasks('daily').map(t => t.title));
   await tapEl(page, '#btn-clear-done');
+  await sleep(300);
+  await tapEl(page, '#confirm-ok');
   await sleep(400);
   eq('[9] 卡片消失', await titles(page, 'general'), ['還沒做']);
   dump = await exportJson();
@@ -695,11 +704,12 @@ group('軟刪除：SOFT_DELETE_TASK.md 的 16 項驗收');
   await sleep(200);
   eq('[11] 一般分頁清單為空', (await titles(page, 'general')).length, 0);
   eq('[11] 顯示空狀態文案', await page.$eval('#empty-general',
-     e => e.hidden ? null : e.textContent), '還沒有一般任務。按右下角的 ＋ 新增。');
+     e => e.hidden ? null : e.querySelector('.empty-text').textContent), '還沒有一般任務。');
+  eq('[11] 空狀態有一顆真的「新增任務」按鈕', await page.$eval('#empty-general button', b => [b.textContent, b.dataset.act]), ['新增任務', 'add']);
   await tapEl(page, '.tab[data-tab="daily"]');
   await sleep(250);
   eq('[11] 日常分頁也是空狀態', await page.$eval('#empty-daily',
-     e => e.hidden ? null : e.textContent), '還沒有日常任務。按右下角的 ＋ 新增。');
+     e => e.hidden ? null : e.querySelector('.empty-text').textContent), '還沒有日常任務。');
   eq('[11] 統計頁不顯示已刪除任務', await (async () => {
     await tapEl(page, '.tab[data-tab="stats"]'); await sleep(250);
     return page.$$eval('.stat-name', ns => ns.map(n => n.textContent));
@@ -729,15 +739,17 @@ group('軟刪除：SOFT_DELETE_TASK.md 的 16 項驗收');
     const t = App.state.tasks.find(x => x.title === name);
     return { id: t.id, history: t.history ? t.history.length : 0, total: App.state.tasks.length };
   }, targetName);
-  page2.__dialogs.length = 0;
   await tapEl(page2, '#deleted-list .del-item [data-act="purge"]');
   await sleep(400);
-  ok('[12] 出現 confirm 對話框', page2.__dialogs.length === 1, page2.__dialogs);
-  ok('[12] 警告文字含任務名稱', page2.__dialogs[0].includes(targetName), page2.__dialogs[0]);
+  const confirmMsg = await page2.evaluate(() => document.querySelector('#confirm').hidden ? null : document.querySelector('#confirm-msg').textContent);
+  ok('[12] 出現 App 內確認卡', confirmMsg !== null, confirmMsg);
+  ok('[12] 警告文字含任務名稱', (confirmMsg || '').includes(targetName), confirmMsg);
   if (purgeTarget.history > 0) {
-    ok('[12] 警告文字含紀錄次數',
-       page2.__dialogs[0].includes(purgeTarget.history + ' 次'), page2.__dialogs[0]);
+    ok('[12] 警告文字含紀錄次數', (confirmMsg || '').includes(purgeTarget.history + ' 次'), confirmMsg);
   }
+  eq('[12] 確認鍵是危險色的「永久刪除」', await page2.$eval('#confirm-ok', b => [b.textContent, b.classList.contains('is-danger')]), ['永久刪除', true]);
+  await tapEl(page2, '#confirm-ok');
+  await sleep(400);
   eq('[12] JSON 中該物件真正消失', await page2.evaluate(id =>
      App.state.tasks.some(t => t.id === id), purgeTarget.id), false);
   eq('[12] 只少一筆，其他已刪除任務仍在',
@@ -758,7 +770,12 @@ group('軟刪除：SOFT_DELETE_TASK.md 的 16 項驗收');
     });
   });
   await tapEl(page2, '#deleted-list [data-act="purge"]').catch(() => {});
+  await sleep(300);
+  await page2.evaluate(() => { if (!document.querySelector('#confirm').hidden) document.querySelector('#confirm-cancel').click(); });
+  await sleep(300);
   await tapEl(page2, '#btn-import');
+  await sleep(300);
+  await tapEl(page2, '#confirm-ok');
   await sleep(500);
   eq('[14] 正常載入，全部視為未刪除',
      await page2.evaluate(() => App.state.tasks.map(t => [t.title, t.deleted_at])),
@@ -948,6 +965,7 @@ group('K. 卡片左右分割 / 外觀與主題色');
   await tapEl(page, rowA + ' .card-side');
   await sleep(300);
   eq('K3 點左側方塊 → 完成', await page.$eval(rowA + ' .card', c => c.classList.contains('is-done')), true);
+  await sleep(1600);
   eq('K3 完成的卡片沉底', await titles(page, 'daily'), ['方塊', '分割卡']);
   eq('K3 左側 aria-pressed 同步', await page.$eval(rowA + ' .card-side', s => s.getAttribute('aria-pressed')), 'true');
   const doneCheck = await page.$eval(rowA + ' .check', c => getComputedStyle(c).backgroundColor);
@@ -1106,7 +1124,7 @@ group('L. 篩選按鍵 / 標籤 / 日期篩選');
   eq('L4 一般分頁也套用', await titles(page, 'general'), ['買菜']);
   eq('L4 空狀態訊息（無符合者時）', await page.evaluate(() => {
     App.filter = App.normFilter({ tags: ['不存在'] }); App.render.list('general', { animate: false });
-    return document.querySelector('#empty-general').hidden ? null : document.querySelector('#empty-general').textContent;
+    return document.querySelector('#empty-general').hidden ? null : document.querySelector('#empty-general .empty-text').textContent;
   }), '沒有符合篩選條件的任務。');
 
   /* 編輯模式顯示全部，篩選條收起 */
@@ -1318,7 +1336,7 @@ group('N. FAB：短按新增、長按圓弧面板（搜尋 / 編輯順序）');
   eq('N4 關鍵字寫入 App.query', await page.evaluate(() => App.query), '喝');
   await page.$eval('#input-search', i => { i.value = 'zzz'; i.dispatchEvent(new Event('input', { bubbles: true })); });
   await sleep(300);
-  eq('N4 無符合者顯示搜尋空狀態', await page.$eval('#empty-daily', e => e.hidden ? null : e.textContent), '沒有符合搜尋條件的任務。');
+  eq('N4 無符合者顯示搜尋空狀態', await page.$eval('#empty-daily', e => e.hidden ? null : e.querySelector('.empty-text').textContent), '沒有符合搜尋條件的任務。');
   await page.$eval('#input-search', i => { i.value = '水'; i.dispatchEvent(new Event('input', { bubbles: true })); });
   await sleep(300);
   await page.goto(URL, { waitUntil: 'load' });
@@ -1455,17 +1473,20 @@ group('O. 任務 sheet 的 ＋：輪盤加入進度條模塊、− 移除、未�
   await setVal('#input-title', '讀書');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
   eq('O3 未填完：sheet 不關、沒建立', [await page.$eval('#sheet-task', s => s.hidden), await page.evaluate(() => App.activeTasks('daily').length)], [false, 0]);
-  ok('O3 提示補填或移除', /移除進度條/.test(await toast() || ''), await toast());
+  const ferr = () => page.$eval('#modules .field-error', e => e.textContent).catch(() => null);
+  ok('O3 錯誤釘在欄位旁邊（不是 toast），提示補填或移除', /移除進度條/.test(await ferr() || ''), await ferr());
+  eq('O3 有問題的欄位標成危險色', await page.$eval(F('current'), i => i.classList.contains('is-invalid')), true);
   eq('O3 焦點跳到第一個未填欄位', await page.evaluate(() => document.activeElement.dataset.field), 'current');
   await setVal(F('current'), '3'); await setVal(F('target'), '10'); await setVal(F('step'), '');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
   eq('O3 只缺每次增加也擋下、焦點到該欄', [await page.$eval('#sheet-task', s => s.hidden), await page.evaluate(() => document.activeElement.dataset.field)], [false, 'step']);
   await setVal(F('step'), '2'); await setVal(F('current'), '12');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
-  eq('O3 目前超過目標也擋下', [await page.$eval('#sheet-task', s => s.hidden), await toast()], [false, '目前進度不能超過目標進度']);
+  eq('O3 目前超過目標也擋下', [await page.$eval('#sheet-task', s => s.hidden), await ferr()], [false, '目前進度不能超過目標進度']);
+  await setVal(F('current'), '3');
+  eq('O3 一輸入就清掉錯誤標示', await page.evaluate(() => [!!document.querySelector('#modules .field-error'), document.querySelector('#modules [data-field="current"]').classList.contains('is-invalid')]), [false, false]);
 
   /* 填完 → 建立成功，卡片顯示進度 */
-  await setVal(F('current'), '3');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
   eq('O4 填完可建立', await page.$eval('#sheet-task', s => s.hidden), true);
   eq('O4 任務帶進度條模塊', await page.evaluate(() => App.taskProgress(App.activeTasks('daily')[0])), { type: 'progress', current: 3, target: 10, step: 2 });
@@ -1477,9 +1498,9 @@ group('O. 任務 sheet 的 ＋：輪盤加入進度條模塊、− 移除、未�
     const g = document.querySelector('#modules .module[data-type="progress"]');
     return [!!g, ...['current', 'target', 'step'].map(k => g.querySelector('[data-field="' + k + '"]').value)];
   }), [true, '3', '10', '2']);
-  page.__dialogs.length = 0;
-  await tapEl(page, PROG + ' .btn-minus'); await sleep(200);
-  ok('O5 − 會跳確認', page.__dialogs.length === 1 && /移除進度條/.test(page.__dialogs[0]), page.__dialogs);
+  await tapEl(page, PROG + ' .btn-minus'); await sleep(300);
+  ok('O5 − 會跳 App 內確認卡', await page.evaluate(() => !document.querySelector('#confirm').hidden && /移除進度條/.test(document.querySelector('#confirm-msg').textContent)));
+  await tapEl(page, '#confirm-ok'); await sleep(300);
   eq('O5 確認後模塊消失', await modTypes(), []);
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
   eq('O5 儲存後進度條移除、卡片不再顯示', await page.evaluate(() => [App.taskProgress(App.activeTasks('daily')[0]), document.querySelector('#list-daily .card-progress').hidden]), [null, true]);
@@ -1577,7 +1598,7 @@ group('Q. 步驟模塊：可多個、依加入順序、圓圈切換完成、只�
   await setVal('#modules .module[data-type="progress"] [data-field="current"]', '0');
   await setVal('#modules .module[data-type="progress"] [data-field="target"]', '3');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
-  eq('Q3 步驟沒填名稱：不能建立、提示、聚焦第一個空的', [await page.$eval('#sheet-task', s => s.hidden), /步驟/.test(await toast() || ''),
+  eq('Q3 步驟沒填名稱：不能建立、欄位旁提示、聚焦第一個空的', [await page.$eval('#sheet-task', s => s.hidden), /步驟/.test(await page.$eval('#modules .field-error', e => e.textContent).catch(() => '')),
      await page.evaluate(() => document.activeElement.classList.contains('step-title') && document.activeElement.closest('.module') === document.querySelector('#modules .module'))], [false, true, true]);
 
   /* 填名稱、勾第二個完成，建立 */
@@ -1611,14 +1632,13 @@ group('Q. 步驟模塊：可多個、依加入順序、圓圈切換完成、只�
   eq('Q7 重開 sheet 模塊順序原樣', await modTypes(), ['step', 'step', 'progress', 'step']);
   eq('Q7 名稱與完成狀態帶回', await page.$$eval('#modules .module[data-type="step"]', ms => ms.map(m => [m.querySelector('.step-title').value, m.querySelector('.step-check').getAttribute('aria-pressed')])),
      [['打包', 'false'], ['叫車', 'true'], ['清潔', 'false']]);
-  page.__dialogs.length = 0;
   await tapStepMinus(0);
-  ok('Q7 移除有名稱的步驟會確認', page.__dialogs.length === 1 && /打包/.test(page.__dialogs[0]), page.__dialogs);
+  ok('Q7 移除有名稱的步驟會確認', await page.evaluate(() => !document.querySelector('#confirm').hidden && /打包/.test(document.querySelector('#confirm-msg').textContent)));
+  await tapEl(page, '#confirm-ok'); await sleep(300);
   eq('Q7 移除後其餘順序不變', await modTypes(), ['step', 'progress', 'step']);
   await addMod('step');
-  page.__dialogs.length = 0;
   await tapStepMinus(2);
-  eq('Q7 移除空白步驟不必確認', [page.__dialogs.length, (await modTypes()).length], [0, 3]);
+  eq('Q7 移除空白步驟不必確認', [await page.$eval('#confirm', c => c.hidden), (await modTypes()).length], [true, 3]);
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
   eq('Q7 儲存後資料同步', await page.evaluate(() => App.activeTasks('daily')[0].modules.map(m => m.type === 'step' ? m.title : 'progress')), ['叫車', 'progress', '清潔']);
 
@@ -1631,6 +1651,98 @@ group('Q. 步驟模塊：可多個、依加入順序、圓圈切換完成、只�
   await setVal('#modules .module[data-type="step"] .step-title', '準備文件');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
   eq('Q8 一般任務存下步驟', await page.evaluate(() => App.activeTasks('general')[0].modules.map(m => [m.type, m.title])), [['step', '準備文件']]);
+  await ctx.close();
+}
+
+group('R. Apple 式打磨：副標、復原、編輯橫幅、看得見的入口、return 開下一步驟、44pt、真按鈕');
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(ctx);
+  await page.goto(URL, { waitUntil: 'load' });
+
+  eq('R1 Dynamic Type：html 字級 17px、字級 token 以 rem 表示', await page.evaluate(() =>
+     [getComputedStyle(document.documentElement).fontSize, getComputedStyle(document.documentElement).getPropertyValue('--fs-3').trim()]), ['17px', '1rem']);
+
+  await addTask(page, 'daily', '喝水');
+  await addTask(page, 'daily', '晨跑');
+  ok('R2 標題下有副標：日期＋待完成數', /^\d+月\d+日 週[日一二三四五六] ・ 2 件待完成$/.test(await page.$eval('#app-sub', s => s.textContent)), await page.$eval('#app-sub', s => s.textContent));
+  eq('R2 卡片兩側是真的 <button>', await page.$eval('#list-daily .card', c => [c.querySelector('.card-side').tagName, c.querySelector('.card-body').tagName]), ['BUTTON', 'BUTTON']);
+
+  /* 勾選：圓圈彈一下、副標更新 */
+  await tapEl(page, '#list-daily .row:first-child .card-side'); await sleep(100);
+  eq('R3 勾選瞬間圓圈有 pop 動畫類別', await page.$eval('#list-daily .row:first-child .card-side', s => s.classList.contains('is-pop')), true);
+  ok('R3 副標即時變成 1 件待完成', /1 件待完成/.test(await page.$eval('#app-sub', s => s.textContent)));
+  await sleep(1700);
+
+  /* 刪除 → 復原 toast，回到原位 */
+  await swipeLeft(page, '#list-daily .row:first-child .card', 80);
+  await tapEl(page, '#list-daily .row:first-child .btn-del'); await sleep(400);
+  eq('R4 刪除後出現「復原」', await page.evaluate(() => [document.querySelector('#toast').hidden, document.querySelector('#toast-btn').hidden, document.querySelector('#toast-btn').textContent]), [false, false, '復原']);
+  eq('R4 卡片已消失', await titles(page, 'daily'), ['喝水']);
+  await tapEl(page, '#toast-btn'); await sleep(400);
+  eq('R4 復原回到原位、toast 收起', [await titles(page, 'daily'), await page.$eval('#toast', t => t.hidden)], [['晨跑', '喝水'], true]);
+  eq('R4 資料上 deleted_at 清空', await page.evaluate(() => App.activeTasks('daily').length), 2);
+
+  /* 編輯順序模式：橫幅＋完成、點卡片微晃 */
+  await page.evaluate(() => App.toggleEditMode()); await sleep(300);
+  eq('R5 編輯順序中有橫幅與「完成」', await page.evaluate(() => [document.querySelector('#edit-bar').hidden, document.querySelector('#btn-edit-done').textContent]), [false, '完成']);
+  await tapEl(page, '#list-daily .row:first-child .card-body'); await sleep(60);
+  eq('R5 點卡片微晃（不靜默）', await page.$eval('#list-daily .row:first-child .card', c => c.classList.contains('is-nudge')), true);
+  await tapEl(page, '#btn-edit-done'); await sleep(300);
+  eq('R5 橫幅的完成離開編輯模式', await page.evaluate(() => [App.mode, document.querySelector('#edit-bar').hidden]), ['normal', true]);
+
+  /* 空狀態按鈕 */
+  await tapEl(page, '.tab[data-tab="general"]'); await sleep(250);
+  await tapEl(page, '#empty-general button[data-act="add"]'); await sleep(300);
+  eq('R6 空狀態的「新增任務」開新增 sheet（預設一般）', await page.evaluate(() => [!document.querySelector('#sheet-task').hidden, document.querySelector('#seg-type [data-type="general"]').getAttribute('aria-pressed')]), [true, 'true']);
+
+  /* 看得見的模塊入口 + return 開下一步驟 */
+  await page.$eval('#input-title', i => { i.value = '報稅'; });
+  eq('R7 模塊列表底下有「＋ 新增步驟」；一般任務沒有進度條入口', await page.evaluate(() => [document.querySelector('#btn-add-step').hidden, document.querySelector('#btn-add-progress').hidden]), [false, true]);
+  await tapEl(page, '#btn-add-step'); await sleep(200);
+  await page.$eval('#modules .step-title', i => { i.focus(); i.value = '找文件'; });
+  await page.keyboard.press('Enter'); await sleep(200);
+  eq('R7 步驟欄按 return → 新步驟出現並取得焦點', await page.evaluate(() => {
+    const ms = document.querySelectorAll('#modules .module[data-type="step"]');
+    return [ms.length, document.activeElement === ms[1].querySelector('.step-title')];
+  }), [2, true]);
+  await page.keyboard.press('Enter'); await sleep(200);
+  eq('R7 空步驤按 return → 收鍵盤、不再新增', await page.evaluate(() => [document.querySelectorAll('#modules .module[data-type="step"]').length, document.activeElement.classList.contains('step-title')]), [2, false]);
+  eq('R7 標題空白錯誤釘在欄位旁', await (async () => { await page.$eval('#input-title', i => { i.value = ''; }); await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+     return page.evaluate(() => [document.querySelector('#input-title').classList.contains('is-invalid'), (document.querySelector('.hero-body .field-error') || {}).textContent]); })(), [true, '請輸入任務標題']);
+
+  /* 44pt：− 與 chip */
+  const hits = await page.evaluate(() => {
+    const m = document.querySelector('#modules .btn-minus').getBoundingClientRect();
+    return { minus: [Math.round(m.width), Math.round(m.height)] };
+  });
+  eq('R8 模塊的 − 點擊目標 44×44', hits.minus, [44, 44]);
+  await tapEl(page, '#sheet-task [data-act="cancel"]'); await sleep(300);
+  await page.evaluate(() => { App.addTask('general', { title: 'x', tags: 'a' }); App.save(); App.render.all({ animate: false }); });
+  await tapEl(page, '#btn-filter'); await sleep(300);
+  ok('R8 篩選 chip 高度 ≥ 44', (await page.$eval('#filter-tags .chip', c => c.getBoundingClientRect().height)) >= 44);
+  eq('R8 篩選 sheet 有名稱搜尋欄，打字即過濦', await (async () => {
+    await page.$eval('#filter-q', (i) => { i.value = 'zz'; i.dispatchEvent(new Event('input', { bubbles: true })); }); await sleep(200);
+    return page.evaluate(() => [App.query, document.querySelector('#search-bar').hidden]); })(), ['zz', false]);
+  await tapEl(page, '#btn-filter-reset'); await sleep(200);
+  eq('R8 「清除」連搜尋一起清', await page.evaluate(() => [App.query, document.querySelector('#filter-q').value]), ['', '']);
+  await tapEl(page, '#sheet-filter [data-act="close"]'); await sleep(300);
+
+  /* 確認卡：點外面＝取消 */
+  await tapEl(page, '.tab[data-tab="general"]'); await sleep(200);
+  await page.evaluate(() => { const t = App.activeTasks('general')[0]; App.toggle(t); App.save(); App.render.all({ animate: false }); });
+  await tapEl(page, '#btn-clear-done'); await sleep(300);
+  await page.touchscreen.tap(30, 200); await sleep(300);
+  eq('R9 確認卡點外面＝取消，什麼都沒發生', await page.evaluate(() => [document.querySelector('#confirm').hidden, App.activeTasks('general').length]), [true, 1]);
+
+  /* 卡片上的進度是一條真的 bar */
+  await page.evaluate(() => { App.addTask('daily', { title: 'p', modules: [{ type: 'progress', current: 3, target: 4, step: 1 }] }); App.save(); App.render.all({ animate: false }); });
+  await tapEl(page, '.tab[data-tab="daily"]'); await sleep(200);
+  eq('R10 進度以真的長條顯示（75%）', await page.evaluate(() => {
+    const row = Array.from(document.querySelectorAll('#list-daily .row')).find(r => r.querySelector('.card-title').textContent === 'p');
+    const fill = row.querySelector('.card-progress-fill'), bar = row.querySelector('.card-progress-bar');
+    return [fill.style.width, Math.round(bar.getBoundingClientRect().height), row.querySelector('.card-progress-text').textContent];
+  }), ['75%', 4, '進度 3 / 4']);
   await ctx.close();
 }
 

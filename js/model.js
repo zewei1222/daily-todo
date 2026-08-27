@@ -526,6 +526,14 @@
     return t;
   };
 
+  /* 刪除後立刻「復原」：清掉標記但保留原本的 order_index，卡片回到原位（restoreTask 會排到最後） */
+  A.undeleteTask = function (id) {
+    var t = A.findTask(id);
+    if (!t || t.deleted_at == null) return null;
+    t.deleted_at = null;
+    return t;
+  };
+
   /* 唯一真正從陣列移除物件的路徑 */
   A.purgeTask = function (id) {
     var i = A.state.tasks.findIndex(function (t) { return t.id === id; });

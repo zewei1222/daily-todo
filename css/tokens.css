@@ -66,19 +66,21 @@
   --font: -apple-system, BlinkMacSystemFont, "SF Pro TC", "PingFang TC",
           "Noto Sans TC", "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --fs-1: 13px;   /* 註釋、次要資訊：比標題小 1~2 級 */
-  --fs-2: 15px;
-  --fs-field: 16px;   /* 所有可輸入欄位的最小字級：iOS Safari 對 < 16px 的欄位 focus 時會自動放大頁面 */
-  --fs-3: 17px;   /* 卡片標題 */
-  --fs-4: 20px;
-  --fs-5: 30px;
+  --fs-1: 0.7647rem;    /* 註釋、次要資訊（13）：比標題小 1~2 級 */
+  --fs-2: 0.8824rem;    /* 15 */
+  /* 字級以 rem 表示、跟隨系統文字大小（Dynamic Type）：html 的 font-size 在 Apple 平台由
+     `font: -apple-system-body` 決定（預設 17px），其他平台固定 17px。下面的比例＝原本的 13/15/17/20/30。 */
+  --fs-field: max(16px, 0.9412rem);   /* 可輸入欄位的最小字級：iOS 對 < 16px 的欄位 focus 時會放大頁面 */
+  --fs-3: 1rem;         /* 卡片標題（17） */
+  --fs-4: 1.1765rem;    /* 20 */
+  --fs-5: 1.7647rem;    /* 30 */
   --fw-normal: 500;
   --fw-bold:   800;
   --lh:        1.35;
   --lh-tight:  1.15;
 
   /* ---- 尺寸 ---- */
-  --header-h:      52px;
+  --header-h:      60px;   /* 標題＋一行副標（日期、待完成數） */
   --tab-h:         56px;
   --fab-size:      60px;
   --card-min-h:    60px;
@@ -100,7 +102,9 @@
   --fab-opt-b-y:   116px;
   --fab-opt-c-x:   88px;   /* 選項 C（左上對角，只有一個選項時用） */
   --fab-opt-c-y:   88px;
-  --btn-minus-size: 32px;  /* 模塊右上角的 − */
+  --btn-minus-size: 32px;  /* 模塊右上角的 − 的視覺大小（點擊目標仍是 --hit-min） */
+  --bar-h:          4px;   /* 卡片上的進度條 */
+  --empty-glyph:    56px;  /* 空狀態的圖示圓 */
   --long-press:    450ms;  /* 長按判定時間 */
 
   /* ---- 左滑刪除 ---- */
@@ -114,9 +118,12 @@
   --dur-fast:   120ms;
   --dur-mid:    200ms;
   --dur-slow:   240ms;
-  --ease-out:   cubic-bezier(.2, .8, .3, 1);
+  --ease-out:   cubic-bezier(0.32, 0.72, 0, 1);   /* iOS 系統動畫的曲線：快出慢收 */
   --ease-in-out: cubic-bezier(.4, 0, .2, 1);
   --press-scale: 0.97;
+  --settle-delay: 1500ms;  /* 勾選後停留多久才沉底／浮上（給人看到勾、可反悔） */
+  --undo-ms:      5000ms;  /* 刪除後「復原」提示停留時間 */
+  --nudge-dur:    260ms;   /* 編輯順序模式點卡片的微晃 */
 
   /* ---- 執行期由 JS 覆寫（visualViewport） ----
      --kb-h  鍵盤高度，只用於內容區的底部留白

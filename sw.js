@@ -3,7 +3,7 @@
    不使用 skipWaiting() / clients.claim()；新內容由 fetch 階段寫進同一份快取，
    下次載入即生效，並在本次瀏覽中以提示條告知。 */
 
-var CACHE_VERSION = 'v10';
+var CACHE_VERSION = 'v11';
 var BASE = '/daily-todo/';
 var CACHE = 'daily-todo-' + CACHE_VERSION;
 

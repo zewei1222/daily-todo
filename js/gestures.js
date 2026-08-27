@@ -151,13 +151,29 @@
     var task = A.findTask(row.dataset.id);
     if (!task) return;
 
-    /* 編輯順序模式：只能拖曳把手排序，點卡片任何位置都不切換完成、也不開編輯 */
-    if (A.mode === 'edit') return;
+    var card = A.$('.card', row);
 
-    /* 左側色塊：切換完成 */
-    if (target.closest('.card-side')) {
+    /* 編輯順序模式：只能拖曳把手排序，點卡片任何位置都不切換完成、也不開編輯——
+       但不靜默：微晃一下告訴你這裡現在不能點 */
+    if (A.mode === 'edit') {
+      if (card && !A.reducedMotion()) {
+        card.classList.remove('is-nudge');
+        void card.offsetWidth;
+        card.classList.add('is-nudge');
+        card.addEventListener('animationend', function h() { card.classList.remove('is-nudge'); card.removeEventListener('animationend', h); });
+      }
+      return;
+    }
+
+    /* 左側色塊：切換完成。圓圈彈一下；卡片先留在原位，--settle-delay 後才沉底／浮上 */
+    var side = target.closest('.card-side');
+    if (side) {
       A.toggle(task);
-      A.render.list(task.type, { animate: true });
+      side.classList.remove('is-pop');
+      void side.offsetWidth;
+      side.classList.add('is-pop');
+      A.render.list(task.type, { animate: true, hold: true });
+      A.render.scheduleSettle(task.type);
       if (A.tab === 'stats') A.render.stats();
       A.save();
       return;
@@ -181,6 +197,17 @@
     A.render.list(type, { animate: true });
     if (A.tab === 'stats') A.render.stats();
     A.save();
+    /* 破壞性動作要能反悔：5 秒內可復原，回到原位（順序不變） */
+    A.toast('已刪除「' + task.title + '」', {
+      ms: A.token('--undo-ms', 5000),
+      action: '復原',
+      onAction: function () {
+        if (!A.undeleteTask(id)) return;
+        A.render.list(type, { animate: true });
+        if (A.tab === 'stats') A.render.stats();
+        A.save();
+      }
+    });
   }
 
   /* ---------- 掛載 ---------- */

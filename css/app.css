@@ -10,6 +10,13 @@ html, body {
   overflow: hidden;
 }
 
+/* Dynamic Type：Apple 平台用系統「內文」字級當 1rem（使用者調大字體整個 App 跟著大），
+   其他平台不認得 -apple-system-body，就維持 17px。tokens 的字級都是 rem。 */
+html {
+  font-size: 17px;
+  font: -apple-system-body;
+}
+
 /* iOS 會為了露出 focus 的輸入框而捲動整份文件，把 position:fixed 的 sheet
    推到可視範圍外。把 body 釘死，文件層就沒有可捲動的空間。 */
 body {
@@ -47,6 +54,9 @@ button {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: inherit;
   /* 長按按鍵不得跳出選字／複製選單（iOS 的 callout） */
   -webkit-touch-callout: none;
   user-select: none;
@@ -65,7 +75,7 @@ button {
   background: var(--c-bg);
 }
 
-.app-title, .sheet-title {
+.app-title-wrap, .sheet-title {
   position: absolute;
   left: 50%;
   top: env(safe-area-inset-top);
@@ -81,6 +91,11 @@ button {
   white-space: nowrap;
   pointer-events: none;
 }
+/* 標題＋副標（日期、待完成數）：像 Reminders 一眼看到今天的狀況 */
+.app-title-wrap { flex-direction: column; justify-content: center; gap: 2px; }
+.app-title { margin: 0; font-size: var(--fs-4); font-weight: var(--fw-bold); line-height: var(--lh-tight); }
+.app-sub { font-size: var(--fs-1); font-weight: var(--fw-normal); color: var(--c-ink-2); line-height: var(--lh-tight); }
+.app-sub:empty { display: none; }
 
 .btn-text {
   display: inline-flex;
@@ -188,6 +203,20 @@ button {
   font-weight: var(--fw-bold);
 }
 .filter-clear:active { color: var(--c-modal); }
+/* 編輯順序模式的橫幅：中性色，右側一顆「完成」 */
+.filter-bar.is-edit { background: var(--c-surface-2); color: var(--c-ink); padding-right: var(--sp-1); }
+.bar-btn {
+  flex: 0 0 auto;
+  min-height: calc(var(--hit-min) - var(--sp-2));
+  padding: 0 var(--sp-4);
+  margin: var(--sp-1) 0;
+  border-radius: var(--r-pill);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  font-size: var(--fs-2);
+  font-weight: var(--fw-bold);
+}
+.bar-btn:active { transform: scale(var(--press-scale)); }
 
 .sync-dot {
   position: absolute;
@@ -298,9 +327,26 @@ button {
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
+  text-align: left;
   background: var(--c-surface);       /* 右側＝卡片底色，明寫出來，不靠透明露出 */
   transition: background-color var(--dur-fast) var(--ease-out);
 }
+
+/* 編輯順序模式點卡片：微晃一下告訴你「這裡現在不能點」，不靜默 */
+@keyframes nudge {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-6px); }
+  70% { transform: translateX(5px); }
+}
+.card.is-nudge { animation: nudge var(--nudge-dur) var(--ease-out); }
+
+/* 勾選瞬間圓圈彈一下：沒有觸覺回饋，用更明確的視覺節拍補 */
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.card-side.is-pop .check { animation: pop var(--dur-slow) var(--ease-out); }
 
 /* 按壓回饋：按在哪一側，哪一側變色 */
 .card.is-press .card-body { background: var(--c-surface-2); }
@@ -327,15 +373,32 @@ button {
 }
 .card-note[hidden] { display: none; }
 
-/* 進度：小字次要色，「進度 3 / 10」 */
+/* 進度：「進度 3 / 10」＋ 一條真的進度條 */
 .card-progress {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   margin-top: var(--sp-1);
   font-size: var(--fs-1);
   color: var(--c-ink-2);
   font-variant-numeric: tabular-nums;
 }
 .card-progress[hidden] { display: none; }
+.card-progress-bar {
+  flex: 1 1 auto;
+  max-width: calc(var(--hit-min) * 3);
+  height: var(--bar-h);
+  border-radius: var(--r-pill);
+  background: var(--c-surface-2);
+  overflow: hidden;
+}
+.card-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-accent);
+  transition: width var(--dur-mid) var(--ease-out);
+}
 
 /* 標籤：主題色小字，「#家務  #健康」 */
 .card-tags {
@@ -407,14 +470,31 @@ button {
 
 .sortable-ghost .card { background: var(--c-surface-2); }
 
-/* ---------- 空狀態 ---------- */
+/* ---------- 空狀態：一個淡淡的符號、一句話、一顆真的按鈕 ---------- */
 .empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
   padding: var(--sp-8) var(--sp-4);
   text-align: center;
   color: var(--c-ink-2);
   font-size: var(--fs-2);
 }
 .empty[hidden] { display: none; }
+.empty-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--empty-glyph);
+  height: var(--empty-glyph);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-ink-2);
+  font-size: var(--fs-5);
+  line-height: 1;
+}
+.empty-text { margin: 0; max-width: 26em; }
 
 /* ---------- 一般分頁：清除已完成 ---------- */
 .list-foot { padding: var(--sp-2) 0 0; }
@@ -752,6 +832,7 @@ textarea.input {
 .btn.is-primary { background: var(--c-accent); color: var(--c-on-accent); }
 .btn.is-danger { background: var(--c-danger); color: var(--c-on-danger); }
 .btn.is-block { display: flex; width: 100%; }
+.btn.is-ghost { background: var(--c-surface); color: var(--c-accent); }
 
 .btn-row {
   display: flex;
@@ -863,8 +944,13 @@ textarea.input {
   position: fixed;
   left: var(--sp-4);
   right: var(--sp-4);
-  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-4));
+  /* 抬到 FAB 上方：帶「復原」按鈕的 toast 不能跟 ＋ 疊在一起 */
+  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--sp-4) + var(--fab-size) + var(--sp-3));
   z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   background: var(--c-surface-2);
   color: var(--c-ink);
@@ -874,6 +960,46 @@ textarea.input {
   pointer-events: none;      /* 純提示，絕不吃掉底下的點擊 */
 }
 .toast[hidden] { display: none; }
+/* 帶動作的提示（例：已刪除・復原）：只有按鈕吃點擊 */
+.toast-text { min-width: 0; overflow-wrap: anywhere; }
+.toast-btn {
+  flex: 0 0 auto;
+  min-height: calc(var(--hit-min) - var(--sp-2));
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-pill);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  font-weight: var(--fw-bold);
+  pointer-events: auto;
+}
+.toast-btn[hidden] { display: none; }
+.toast.has-action { justify-content: space-between; text-align: left; padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4); }
+
+/* ---------- App 內的確認卡 ---------- */
+.confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.confirm[hidden] { display: none; }
+.confirm-shield { position: absolute; inset: 0; }     /* 透明，只負責「點外面＝取消」 */
+.confirm-card {
+  position: relative;
+  margin: 0 var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom));
+  padding: var(--sp-5) var(--sp-4) var(--sp-4);
+  background: var(--c-surface);
+  border-radius: var(--r-lg);
+  transform: translateY(var(--sp-5));
+  opacity: 0;
+  transition: transform var(--dur-mid) var(--ease-out), opacity var(--dur-mid) var(--ease-out);
+}
+.confirm.is-open .confirm-card { transform: none; opacity: 1; }
+.confirm-msg { margin: 0 0 var(--sp-4); font-size: var(--fs-2); line-height: var(--lh); }
+.confirm-actions { display: flex; gap: var(--sp-2); }
+.confirm-actions > .btn { flex: 1 1 0; }
 
 /* ---------- 降低動態 ---------- */
 @media (prefers-reduced-motion: reduce) {
@@ -963,7 +1089,7 @@ textarea.input {
 .chip {
   display: inline-flex;
   align-items: center;
-  min-height: var(--chip-h);
+  min-height: var(--hit-min);        /* 44pt 點擊目標；--chip-h 只剩視覉參考 */
   padding: 0 var(--sp-4);
   border-radius: var(--r-pill);
   background: var(--c-bg);
@@ -1006,7 +1132,16 @@ textarea.input {
   margin-bottom: var(--sp-3);
 }
 .group-head > .group-title { margin-bottom: 0; }
+/* 點擊目標 44pt，視覺是 32px 的小圓 */
 .btn-minus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-min);
+  height: var(--hit-min);
+  margin: calc((var(--btn-minus-size) - var(--hit-min)) / 2);
+}
+.btn-minus > span {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1018,8 +1153,9 @@ textarea.input {
   font-size: var(--fs-4);
   font-weight: var(--fw-bold);
   line-height: 1;
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
-.btn-minus:active { transform: scale(var(--press-scale)); background: var(--c-danger); color: var(--c-on-danger); }
+.btn-minus:active > span { transform: scale(var(--press-scale)); background: var(--c-danger); color: var(--c-on-danger); }
 
 /* ---------- 任務 sheet 的模塊列表 ---------- */
 /* 一般任務沒有進度條：切到一般時把已加入的進度條模塊藏起來（儲存時也不會收） */
@@ -1053,3 +1189,19 @@ textarea.input {
 .step-check:active { transform: scale(var(--press-scale)); }
 .step-title { flex: 1 1 auto; min-width: 0; }
 .module.is-done .step-title { color: var(--c-ink-2); text-decoration: line-through; }
+
+/* 模塊列表底下的看得見入口 */
+.module-adders { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.module-adders[hidden] { display: none; }
+.btn[hidden] { display: none; }
+
+/* 欄位錯誤：釘在欄位旁邊，而不是一閃即逝的 toast */
+.input.is-invalid, .input-pill.is-invalid { background: var(--c-danger); color: var(--c-on-danger); }
+.input.is-invalid::placeholder, .input-pill.is-invalid::placeholder { color: var(--c-on-danger); }
+.field-error {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-1);
+  font-weight: var(--fw-bold);
+  color: var(--c-danger);
+}
+.hero-body .field-error { color: var(--c-on-modal); margin-left: var(--sp-3); }

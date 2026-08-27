@@ -7,7 +7,7 @@
 <meta name="description" content="極簡重複待辦清單">
 <meta name="theme-color" content="#000000">
 <!-- 版本標記：與 sw.js 的 CACHE_VERSION 同號，App 靠它判斷有沒有新版 -->
-<meta name="app-version" content="10">
+<meta name="app-version" content="11">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -57,7 +57,10 @@
          之後再決定放哪裡。把 hidden 拿掉就會回到標題列左側。 -->
     <button class="btn-text" id="btn-edit" type="button" hidden>編輯</button>
   </span>
-  <h1 class="app-title" id="app-title">日常</h1>
+  <div class="app-title-wrap">
+    <h1 class="app-title" id="app-title">日常</h1>
+    <span class="app-sub" id="app-sub"></span>
+  </div>
   <button class="btn-icon head-r" id="btn-settings" type="button" aria-label="設定">
     ⚙<span class="sync-dot" id="sync-dot" hidden></span>
   </button>
@@ -81,19 +84,25 @@
   <button class="filter-clear" id="btn-filter-clear" type="button" aria-label="清除篩選">✕</button>
 </div>
 
+<!-- 編輯順序模式：明講現在在哪個狀態、怎麼離開（點卡片沒反應不能是靜默的） -->
+<div class="filter-bar is-edit" id="edit-bar" hidden>
+  <span class="filter-text">編輯順序中：拖曳 ≡ 排序，點卡片不會有反應</span>
+  <button class="bar-btn" id="btn-edit-done" type="button">完成</button>
+</div>
+
 <main class="app-main">
 
   <section class="view" id="view-daily" data-type="daily">
     <div class="view-inner">
       <ul class="list" id="list-daily"></ul>
-      <p class="empty" id="empty-daily" hidden></p>
+      <div class="empty" id="empty-daily" hidden></div>
     </div>
   </section>
 
   <section class="view" id="view-general" data-type="general" hidden>
     <div class="view-inner">
       <ul class="list" id="list-general"></ul>
-      <p class="empty" id="empty-general" hidden></p>
+      <div class="empty" id="empty-general" hidden></div>
       <div class="list-foot" id="foot-general" hidden>
         <button class="btn is-block" id="btn-clear-done" type="button">清除已完成</button>
       </div>
@@ -211,6 +220,11 @@
       <!-- 模塊列表（進度條／步驟）：由右下角 ＋ 的輪盤加入，先加的在上；每個模塊右上角 − 移除。
            內容由 main.js 的 buildModule 產生。 -->
       <div class="modules" id="modules"></div>
+      <!-- 看得見的入口：輪盤是捷徑，不是唯一路徑 -->
+      <div class="module-adders" id="module-adders">
+        <button class="btn is-ghost" id="btn-add-step" type="button" data-add="step">＋ 新增步驟</button>
+        <button class="btn is-ghost" id="btn-add-progress" type="button" data-add="progress">＋ 新增進度條</button>
+      </div>
 
     </div>
   </div>
@@ -250,6 +264,12 @@
   </div>
   <div class="sheet-body">
     <div class="sheet-inner">
+
+      <div class="group">
+        <span class="group-title">名稱</span>
+        <input class="input" id="filter-q" type="search" maxlength="80" autocomplete="off"
+               autocapitalize="none" spellcheck="false" enterkeyhint="search" placeholder="搜尋任務名稱">
+      </div>
 
       <div class="group">
         <span class="group-title">標籤</span>
@@ -396,7 +416,20 @@
   <button id="btn-reload" type="button">重新載入</button>
 </div>
 
-<div class="toast" id="toast" hidden></div>
+<!-- toast 內不留空白：textContent 就是訊息本身 -->
+<div class="toast" id="toast" hidden role="status" aria-live="polite"><span class="toast-text" id="toast-text"></span><button class="toast-btn" id="toast-btn" type="button" hidden></button></div>
+
+<!-- App 內的確認卡（取代瀏覽器 confirm()：在 standalone 裡系統對話框的字體與風格都跟 App 脫節） -->
+<div class="confirm" id="confirm" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-msg">
+  <div class="confirm-shield" data-act="cancel"></div>
+  <div class="confirm-card">
+    <p class="confirm-msg" id="confirm-msg"></p>
+    <div class="confirm-actions">
+      <button class="btn is-block" id="confirm-cancel" type="button">取消</button>
+      <button class="btn is-block is-danger" id="confirm-ok" type="button">確定</button>
+    </div>
+  </div>
+</div>
 
 <script src="/daily-todo/js/util.js"></script>
 <script src="/daily-todo/js/store.js"></script>

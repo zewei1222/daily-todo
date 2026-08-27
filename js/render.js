@@ -9,6 +9,8 @@
   R.init = function () {
     els = {
       title:     A.$('#app-title'),
+      sub:       A.$('#app-sub'),
+      editBar:   A.$('#edit-bar'),
       btnEdit:   A.$('#btn-edit'),
       btnFilter: A.$('#btn-filter'),
       btnSort:   A.$('#btn-sort'),
@@ -81,20 +83,26 @@
        右側（卡片底色）放標題與敘述，點它開編輯。 */
     var card = A.el('div', 'card');
 
-    var side = A.el('span', 'card-side');
-    side.setAttribute('role', 'button');
+    /* 兩側都是真的 <button>：VoiceOver、鍵盤、切換控制才到得了 */
+    var side = A.el('button', 'card-side');
+    side.type = 'button';
     var check = A.el('span', 'check');
     check.appendChild(A.el('span', 'check-mark', '✓'));
     side.appendChild(check);
     card.appendChild(side);
 
-    var body = A.el('span', 'card-body');
-    body.setAttribute('role', 'button');
+    var body = A.el('button', 'card-body');
+    body.type = 'button';
     var main = A.el('span', 'card-main');
     main.appendChild(A.el('span', 'card-title'));
     main.appendChild(A.el('span', 'card-note'));
     main.appendChild(A.el('span', 'card-tags'));
-    main.appendChild(A.el('span', 'card-progress'));
+    var prog = A.el('span', 'card-progress');
+    prog.appendChild(A.el('span', 'card-progress-text'));
+    var bar = A.el('span', 'card-progress-bar');
+    bar.appendChild(A.el('span', 'card-progress-fill'));
+    prog.appendChild(bar);
+    main.appendChild(prog);
     body.appendChild(main);
     body.appendChild(A.el('span', 'badge'));
     var handle = A.el('span', 'drag-handle', '≡');
@@ -127,7 +135,9 @@
     var progEl = A.$('.card-progress', row);
     var pm = A.taskProgress(task);
     var prog = pm ? '進度 ' + pm.current + ' / ' + pm.target : '';   /* 步驟刻意不顯示在卡片上 */
-    if (progEl.textContent !== prog) progEl.textContent = prog;
+    var progText = A.$('.card-progress-text', row);
+    if (progText.textContent !== prog) progText.textContent = prog;
+    A.$('.card-progress-fill', row).style.width = pm ? Math.round(100 * pm.current / pm.target) + '%' : '0%';
     progEl.hidden = !prog;
 
     var done = A.isDone(task);
@@ -167,12 +177,52 @@
     });
   }
 
+  /* ---------- 勾選後的「停留」 ----------
+     勾完不立刻沉底：先在原位變色、停 --settle-delay，讓人看到勾、還能反悔，時間到才 FLIP 到該去的地方。
+     hold 模式＝照目前 DOM 的順序排（新出現的接在後面）。 */
+  var settleTimers = {};
+  R.scheduleSettle = function (type) {
+    if (settleTimers[type]) clearTimeout(settleTimers[type]);
+    settleTimers[type] = setTimeout(function () {
+      settleTimers[type] = null;
+      R.list(type, { animate: true });
+    }, A.token('--settle-delay', 1500));
+  };
+  R.settleNow = function () {
+    Object.keys(settleTimers).forEach(function (k) {
+      if (settleTimers[k]) { clearTimeout(settleTimers[k]); settleTimers[k] = null; }
+    });
+  };
+
+  function holdOrder(listEl, tasks) {
+    var pos = Object.create(null);
+    A.$$(':scope > .row', listEl).forEach(function (li, i) { pos[li.dataset.id] = i; });
+    var kept = tasks.filter(function (t) { return pos[t.id] !== undefined; })
+                    .sort(function (a, b) { return pos[a.id] - pos[b.id]; });
+    var fresh = tasks.filter(function (t) { return pos[t.id] === undefined; });
+    return kept.concat(fresh);
+  }
+
+  /* ---------- 空狀態 ---------- */
+  function setEmpty(el, glyph, text, action) {
+    el.textContent = '';
+    if (glyph) el.appendChild(A.el('span', 'empty-glyph', glyph));
+    el.appendChild(A.el('p', 'empty-text', text));
+    if (action) {
+      var b = A.el('button', 'btn ' + (action.primary ? 'is-primary' : ''), action.label);
+      b.type = 'button';
+      b.dataset.act = action.act;
+      el.appendChild(b);
+    }
+  }
+
   /* ---------- 清單 ---------- */
   R.list = function (type, opts) {
     opts = opts || {};
     var listEl = els.lists[type];
     if (!listEl) return;
     var tasks = A.sortedTasks(type, A.mode);
+    if (opts.hold) tasks = holdOrder(listEl, tasks);
 
     listEl.classList.toggle('is-edit', A.mode === 'edit');
 
@@ -184,19 +234,36 @@
     emptyEl.hidden = tasks.length > 0;
     if (!emptyEl.hidden) {
       if (A.mode !== 'edit' && (A.filterActive() || A.query) && A.activeTasks(type).length) {
-        emptyEl.textContent = A.query && !A.filterActive() ? '沒有符合搜尋條件的任務。'
-                            : (A.query ? '沒有符合搜尋與篩選條件的任務。' : '沒有符合篩選條件的任務。');
+        var msg = A.query && !A.filterActive() ? '沒有符合搜尋條件的任務。'
+                : (A.query ? '沒有符合搜尋與篩選條件的任務。' : '沒有符合篩選條件的任務。');
+        setEmpty(emptyEl, null, msg, { act: 'clear', label: A.query && !A.filterActive() ? '清除搜尋' : '清除篩選' });
       } else if (type === 'general') {
-        emptyEl.textContent = '還沒有一般任務。按右下角的 ＋ 新增。';
+        setEmpty(emptyEl, '＋', '還沒有一般任務。', { act: 'add', label: '新增任務', primary: true });
       } else if (A.activeTasks('daily').length === 0) {
-        emptyEl.textContent = '還沒有日常任務。按右下角的 ＋ 新增。';
+        setEmpty(emptyEl, '＋', '還沒有日常任務。', { act: 'add', label: '新增任務', primary: true });
       } else {
-        emptyEl.textContent = '今天沒有到期的日常任務。';
+        setEmpty(emptyEl, '✓', '今天沒有到期的日常任務。', null);
       }
     }
     if (type === 'general') {
       els.footGeneral.hidden = !(A.mode === 'normal' && A.hasCompletedGeneral());
     }
+    R.subtitle();
+  };
+
+  /* ---------- 副標：今天幾號、幾件待完成 ---------- */
+  R.subtitle = function () {
+    var text = '';
+    if (A.tab === 'daily') {
+      var d = A.dateParts(A.logicalToday());
+      var open = A.sortedTasks('daily', 'normal').filter(function (t) { return !A.isDone(t); }).length;
+      text = d[1] + '月' + d[2] + '日 週' + A.WEEKDAY_NAMES[A.weekdayOf(A.logicalToday())] +
+             (A.activeTasks('daily').length ? ' ・ ' + (open ? open + ' 件待完成' : '全部完成') : '');
+    } else if (A.tab === 'general') {
+      var n = A.activeTasks('general').filter(function (t) { return !t.completed_at; }).length;
+      text = A.activeTasks('general').length ? (n ? n + ' 件未完成' : '全部完成') : '';
+    }
+    if (els.sub.textContent !== text) els.sub.textContent = text;
   };
 
   /* ---------- Header / Tab / FAB ---------- */
@@ -241,9 +308,11 @@
     els.btnFilter.classList.toggle('is-invisible', !onList);
     els.btnFilter.classList.toggle('is-active', active);
     els.btnFilter.setAttribute('aria-pressed', active ? 'true' : 'false');
-    /* 編輯模式顯示全部、不套篩選，所以篩選條也收起來 */
+    /* 編輯模式顯示全部、不套篩選，所以篩選條也收起來；改掛「編輯順序中」的橫幅 */
     els.filterBar.hidden = !(onList && active && A.mode === 'normal');
     if (!els.filterBar.hidden) els.filterText.textContent = filterSummary(A.filter);
+    els.editBar.hidden = !(onList && A.mode === 'edit');
+    R.subtitle();
 
     els.tabs.forEach(function (b) {
       b.setAttribute('aria-selected', b.dataset.tab === A.tab ? 'true' : 'false');

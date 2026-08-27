@@ -256,7 +256,7 @@ node test/logic.test.js          # 純邏輯：日期、週期、連續期數、
 
 python3 test/serve.py            # 另開一個終端，掛在 /daily-todo/ 路徑
 cd test && npm i                 # 只裝 puppeteer-core，用系統的 google-chrome
-node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、模塊（進度條／步驟）、sheet 捲動（368 項）
+node ui.test.mjs                 # 瀏覽器行為：手勢、編輯模式、週期、軟刪除、鍵盤、離線、版面、卡片分割與主題、篩選、排序、FAB 長按面板、輪盤手勢與搜尋、模塊、sheet 捲動、Apple 式打磨（397 項）
 node sync.test.mjs               # 用假的 GitHub API 驗證備份流程 F1–F6、E5、軟刪除同步（33 項）
 ```
 
@@ -303,6 +303,36 @@ UI 測試預設 `executablePath: '/usr/bin/google-chrome'`，換環境時改掉�
 **全介面沒有任何邊框**，版面靠純色色塊與圓角切割；禁止漸層、rgba 透明、blur、模糊陰影。
 這幾條都有測試把關（`ui.test.mjs` 的「I. 版面與 tokens」會掃過所有元素檢查邊框與透明色，
 「K. 卡片左右分割 / 外觀與主題色」在淺色模式下再掃一次）。
+
+## v11：以 Apple HIG 的眼光打磨（可整批退回）
+
+打磨前的版本打了標籤 **`v10-stable`**。不喜歡整批退回：
+
+```bash
+git checkout main && git reset --hard v10-stable && git push --force origin main
+```
+
+（或只退某一項：`git log v10-stable..main` 找到那筆 commit 後 `git revert <sha>`。）
+
+這一批改了什麼、為什麼：
+
+| 面向 | 改動 | 理由 |
+|---|---|---|
+| 寬容（forgiveness） | 勾選後**停留 `--settle-delay`（1.5s）才沉底／浮上**；圓圈彈一下 | 看得到勾、點錯能立刻反悔，連勾兩個不會點到別張 |
+| | 左滑刪除後出現「已刪除・**復原**」5 秒，復原回原位 | 破壞性動作要能反悔；設定頁的還原太深 |
+| | 欄位錯誤**釘在欄位旁邊**（危險色底＋一行說明，輸入即清） | toast 一閃即逝，眼睛在欄位上看不到 |
+| | 瀏覽器 `confirm()` 全部換成 **App 內確認卡**（點外面＝取消） | standalone 裡系統對話框的字體與風格與 App 脫節 |
+| 不靜默 | 編輯順序模式掛橫幅「編輯順序中…・完成」；點卡片**微晃** | 使用者要知道自己在哪個狀態、怎麼離開 |
+| 看得見的入口 | 模塊列表底下一排「＋ 新增步驟／＋ 新增進度條」；篩選 sheet 加「名稱」搜尋欄 | 長按輪盤是捷徑，不能是唯一路徑 |
+| 輸入 | 步驟欄按 return 直接開下一個步驟並接著打（空的就收鍵盤） | Notes 清單的節拍 |
+| 資訊 | 標題下副標「8月27日 週四 ・ 3 件待完成」；空狀態改成符號＋一句話＋**真的按鈕** | 一眼看到今天的狀況；不要叫使用者去找別的地方 |
+| 進度 | 卡片上畫**真的進度條**（4px），不只文字 | 既然叫進度條 |
+| HIG 硬規則 | 所有點擊目標 ≥ 44pt（模塊的 −、篩選 chip）；卡片兩側改成真的 `<button>`；toast 加 `role="status"` | VoiceOver／切換控制到得了；44pt 是審查項目 |
+| Dynamic Type | `html { font: -apple-system-body }`，字級 token 全改 rem | 使用者調大系統字體，App 跟著大；非 Apple 平台維持 17px |
+| 動態 | `--ease-out` 改 iOS 系統曲線 `cubic-bezier(0.32, 0.72, 0, 1)` | 快出慢收的手感 |
+
+沒做（下一批候選）：長按卡片直接拖曳排序（廢掉編輯模式）、卡片式 sheet＋下拉關閉、標籤 token 欄位、進度 stepper、
+逐筆合併的同步、淺色開機圖。
 
 ## 與規格的取捨
 

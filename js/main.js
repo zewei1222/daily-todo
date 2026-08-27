@@ -7,14 +7,55 @@
   var lastLogical = null;
   var toastTimer = null;
 
-  /* ================= Toast ================= */
-  A.toast = function (msg, ms) {
-    var el = A.$('#toast');
-    el.textContent = msg;
+  /* ================= Toast =================
+     A.toast(msg)、A.toast(msg, ms)、A.toast(msg, { ms, action, onAction })。
+     帶 action 時右側多一顆按鈕（例：已刪除・復原），只有那顆按鈕吃點擊。 */
+  var toastAction = null;
+  A.toast = function (msg, opts) {
+    if (typeof opts === 'number') opts = { ms: opts };
+    opts = opts || {};
+    var el = A.$('#toast'), text = A.$('#toast-text'), btn = A.$('#toast-btn');
+    text.textContent = msg;
+    toastAction = opts.action ? opts.onAction : null;
+    btn.textContent = opts.action || '';
+    btn.hidden = !opts.action;
+    el.classList.toggle('has-action', !!opts.action);
     el.hidden = false;
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.hidden = true; }, ms || 2200);
+    toastTimer = setTimeout(function () { el.hidden = true; toastAction = null; }, opts.ms || 2200);
   };
+  A.hideToast = function () {
+    if (toastTimer) clearTimeout(toastTimer);
+    A.$('#toast').hidden = true;
+    toastAction = null;
+  };
+
+  /* ================= App 內的確認卡（取代 confirm()） =================
+     A.confirm(message, { ok: '移除', danger: true }) → Promise<boolean> */
+  var confirmResolve = null;
+  A.confirm = function (message, opts) {
+    opts = opts || {};
+    var box = A.$('#confirm');
+    A.$('#confirm-msg').textContent = message;
+    var okBtn = A.$('#confirm-ok');
+    okBtn.textContent = opts.ok || '確定';
+    okBtn.classList.toggle('is-danger', opts.danger !== false);
+    okBtn.classList.toggle('is-primary', opts.danger === false);
+    if (confirmResolve) confirmResolve(false);
+    box.hidden = false;
+    void box.offsetHeight;
+    box.classList.add('is-open');
+    return new Promise(function (resolve) { confirmResolve = resolve; });
+  };
+  function settleConfirm(result) {
+    var box = A.$('#confirm');
+    var r = confirmResolve;
+    confirmResolve = null;
+    box.classList.remove('is-open');
+    var dur = A.token('--dur-mid', 200);
+    setTimeout(function () { if (!confirmResolve) box.hidden = true; }, A.reducedMotion() ? 0 : dur);
+    if (r) r(result);
+  }
 
   /* ================= 分頁與捲動記憶（SPEC §9.2） ================= */
   var saveUi = A.debounce(function () { A.writeUiState(ui); }, 200);
@@ -51,6 +92,7 @@
 
   function setMode(mode, quiet) {
     A.mode = mode;
+    A.render.settleNow();
     if (A.closeFabMenu) A.closeFabMenu();
     A.gestures.closeOpen(false);
     A.render.chrome();
@@ -141,6 +183,32 @@
     A.$('#repeat-summary').textContent = A.repeatLabel(sheetRepeatPreview());
   }
 
+  /* ---- 欄位錯誤：釘在欄位旁邊（而不是 toast），輸入時自動清掉 ---- */
+  function fieldContainer(el) {
+    return el.closest('.group-row') || el.closest('.step-row') || el.closest('.hero-field') || el.parentNode;
+  }
+  function showFieldError(el, msg) {
+    el.classList.add('is-invalid');
+    var host = fieldContainer(el);
+    var err = host.nextElementSibling;
+    if (!err || !err.classList.contains('field-error')) {
+      err = A.el('p', 'field-error');
+      host.parentNode.insertBefore(err, host.nextSibling);
+    }
+    err.textContent = msg;
+    el.scrollIntoView({ block: 'center' });
+    el.focus();
+  }
+  function clearFieldError(el) {
+    el.classList.remove('is-invalid');
+    var err = fieldContainer(el).nextElementSibling;
+    if (err && err.classList.contains('field-error')) err.remove();
+  }
+  function clearAllFieldErrors(root) {
+    A.$$('.is-invalid', root).forEach(function (el) { el.classList.remove('is-invalid'); });
+    A.$$('.field-error', root).forEach(function (el) { el.remove(); });
+  }
+
   /* ---- 模塊列表：進度條（日常限定、最多一個）＋ 步驟（可多個）。
      加入的順序就是顯示順序（先加的在上），DOM 是 sheet 開著時的唯一真相，儲存時再從 DOM 收。 ---- */
   var modulesHost = null;
@@ -149,7 +217,8 @@
   function makeHead(title, minusLabel) {
     var head = A.el('div', 'group-head');
     head.appendChild(A.el('span', 'group-title', title));
-    var minus = A.el('button', 'btn-minus', '−');
+    var minus = A.el('button', 'btn-minus');
+    minus.appendChild(A.el('span', null, '−'));
     minus.type = 'button';
     minus.dataset.act = 'remove';
     minus.setAttribute('aria-label', minusLabel);
@@ -210,9 +279,15 @@
     var host = modulesEl();
     host.textContent = '';
     (list || []).forEach(function (m) { host.appendChild(buildModule(m)); });
+    refreshAdders();
   }
 
   function hasProgressModule() { return !!A.$('.module[data-type="progress"]', modulesEl()); }
+
+  /* 看得見的入口：輪盤是捷徑，這排按鈕才是主路徑 */
+  function refreshAdders() {
+    A.$('#btn-add-progress').hidden = sheetType !== 'daily' || hasProgressModule();
+  }
 
   function addModule(type) {
     if (type === 'progress') {
@@ -222,7 +297,9 @@
     var box = buildModule(type === 'progress' ? { type: 'progress' } : { type: 'step', title: '', done: false });
     modulesEl().appendChild(box);          /* 接在最後：先加的在上 */
     box.scrollIntoView({ block: 'nearest' });
+    refreshAdders();
     /* 刻意不自動 focus：鍵盤一跳出來 iOS 就推畫面，要打字的人自己點欄位 */
+    return box;
   }
 
   function onModulesClick(e) {
@@ -237,14 +314,30 @@
       return;
     }
     if (btn.dataset.act === 'remove') {
+      var done = function () { box.remove(); refreshAdders(); };
       if (box.dataset.type === 'progress') {
-        if (!confirm('移除進度條？已填的數值會一起清掉。')) return;
+        A.confirm('移除進度條？已填的數值會一起清掉。', { ok: '移除' }).then(function (ok) { if (ok) done(); });
       } else {
         var t = A.$('.step-title', box);
-        if (t && t.value.trim() && !confirm('移除步驟「' + t.value.trim() + '」？')) return;
+        if (t && t.value.trim()) {
+          A.confirm('移除步驟「' + t.value.trim() + '」？', { ok: '移除' }).then(function (ok) { if (ok) done(); });
+        } else {
+          done();
+        }
       }
-      box.remove();
     }
+  }
+
+  /* 步驟欄按 return：有內容就直接開下一個步驟並接著打（像 Notes 的清單），空的就收鍵盤 */
+  function onModulesKeydown(e) {
+    if (e.key !== 'Enter') return;
+    var input = e.target.closest('.step-title');
+    if (!input) return;
+    e.preventDefault();
+    if (!input.value.trim()) { input.blur(); return; }
+    var box = addModule('step');
+    var next = box && A.$('.step-title', box);
+    if (next) next.focus();
   }
 
   /* 從 DOM 收模塊；第一個有問題的欄位回 { ok:false, error, el } */
@@ -273,6 +366,7 @@
     A.$('#group-schedule').hidden = sheetType !== 'daily';
     modulesEl().classList.toggle('is-general', sheetType !== 'daily');
     A.$('#fab-opt-progress').hidden = sheetType !== 'daily';     /* 一般任務的輪盤只有「步驟」 */
+    refreshAdders();
     if (sheetFab) sheetFab.close();
     A.$('#sheet-task-title').textContent =
       (editingId ? '編輯' : '新增') + (sheetType === 'daily' ? '日常任務' : '一般任務');
@@ -296,6 +390,7 @@
     var r = task && task.type === 'daily' ? A.repeatRule(task) : { unit: 'day', interval: 1 };
     sheetUnit = r.unit;
     setModules(task ? task.modules : []);
+    clearAllFieldErrors(sheet);
     A.$('#input-interval').value = String(r.interval);
     A.$('#input-start').value = (task && task.start_date) ? task.start_date : A.logicalToday();
 
@@ -320,16 +415,13 @@
 
   function saveTaskSheet() {
     var fields = collectSheetFields();
-    if (!fields.title) { A.toast('請輸入任務標題'); A.$('#input-title').focus(); return; }
+    clearAllFieldErrors(A.$('#sheet-task'));
+    if (!fields.title) { showFieldError(A.$('#input-title'), '請輸入任務標題'); return; }
 
-    /* 模塊在 sheet 裡就必須填完整（進度條三個值、步驟名稱），否則不能建立／儲存 */
+    /* 模塊在 sheet 裡就必須填完整（進度條三個值、步驟名稱），否則不能建立／儲存。
+       錯誤釘在欄位旁邊，不用 toast。 */
     var mods = collectModules();
-    if (!mods.ok) {
-      A.toast(mods.error, 3200);
-      mods.el.scrollIntoView({ block: 'center' });
-      mods.el.focus();
-      return;
-    }
+    if (!mods.ok) { showFieldError(mods.el, mods.error); return; }
     fields.modules = mods.modules;
 
     if (editingId) {
@@ -387,7 +479,14 @@
       : '還沒有任務有標籤。新增或編輯任務時，在「標籤」欄以逗號分隔填入。';
     A.$('#filter-from').value = A.filter.from || '';
     A.$('#filter-to').value = A.filter.to || '';
+    A.$('#filter-q').value = A.query || '';
   }
+
+  /* 空狀態與篩選條共用：一次清掉篩選與搜尋 */
+  A.clearFilters = function () {
+    setFilter(null);
+    if (A.query || A.searchOpen) closeSearch();
+  };
 
   function readFilterDates() {
     return { tags: A.filter.tags,
@@ -724,11 +823,13 @@
     } else {
       msg = '永久刪除「' + task.title + '」？此任務將無法復原。';
     }
-    if (!confirm(msg)) return;
-    A.purgeTask(id);
-    A.save();
-    renderDeletedList();
-    A.toast('已永久刪除');
+    A.confirm(msg, { ok: '永久刪除' }).then(function (ok) {
+      if (!ok) return;
+      A.purgeTask(id);
+      A.save();
+      renderDeletedList();
+      A.toast('已永久刪除');
+    });
   }
 
   function renderSyncStatus() {
@@ -763,16 +864,18 @@
     if (!text) { A.toast('請先貼上要匯入的 JSON'); return; }
     var res = A.parsePayload(text);
     if (!res.ok) { A.toast(res.error); return; }
-    if (!confirm('匯入會覆蓋這台裝置上的所有資料，並同步覆蓋雲端備份。確定要繼續嗎？')) return;
-
-    A.state = res.state;
-    A.save();                       /* 更新 updated_at 並排入上傳 */
-    A.sync.pushNow();               /* 強制推一份，避免被舊備份蓋回 */
-    lastLogical = A.logicalToday();
-    A.render.all({ animate: false });
-    restoreScroll();
-    fillSettings();
-    A.toast('已匯入 ' + A.activeTasks().length + ' 筆任務');
+    A.confirm('匯入會覆蓋這台裝置上的所有資料，並同步覆蓋雲端備份。確定要繼續嗎？', { ok: '匯入並覆蓋' })
+      .then(function (ok) {
+        if (!ok) return;
+        A.state = res.state;
+        A.save();                       /* 更新 updated_at 並排入上傳 */
+        A.sync.pushNow();               /* 強制推一份，避免被舊備份蓋回 */
+        lastLogical = A.logicalToday();
+        A.render.all({ animate: false });
+        restoreScroll();
+        fillSettings();
+        A.toast('已匯入 ' + A.activeTasks().length + ' 筆任務');
+      });
   }
 
   function copyExport() {
@@ -987,8 +1090,45 @@
       });
     });
     A.$('#btn-filter-reset').addEventListener('click', function () {
-      setFilter(null);
+      A.clearFilters();
       fillFilterSheet();
+    });
+    A.$('#filter-q').addEventListener('input', function (e) {
+      A.searchOpen = !!A.normQuery(e.target.value);
+      setQuery(e.target.value);
+    });
+
+    /* 編輯順序橫幅的「完成」 */
+    A.$('#btn-edit-done').addEventListener('click', function () { setMode('normal'); });
+
+    /* 空狀態的按鈕 */
+    ['daily', 'general'].forEach(function (k) {
+      A.render.els.empties[k].addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-act]');
+        if (!b) return;
+        if (b.dataset.act === 'add') A.openTaskSheet(null);
+        else if (b.dataset.act === 'clear') A.clearFilters();
+      });
+    });
+
+    /* toast 的動作按鈕、確認卡 */
+    A.$('#toast-btn').addEventListener('click', function () {
+      var fn = toastAction;
+      A.hideToast();
+      if (fn) fn();
+    });
+    A.$('#confirm-ok').addEventListener('click', function () { settleConfirm(true); });
+    A.$('#confirm-cancel').addEventListener('click', function () { settleConfirm(false); });
+    A.$('#confirm .confirm-shield').addEventListener('click', function () { settleConfirm(false); });
+
+    /* 模塊：看得見的新增入口、return 開下一步驟、輸入時清掉欄位錯誤 */
+    A.$('#module-adders').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-add]');
+      if (b) addModule(b.dataset.add);
+    });
+    modulesEl().addEventListener('keydown', onModulesKeydown);
+    A.$('#sheet-task').addEventListener('input', function (e) {
+      if (e.target.classList.contains('is-invalid')) clearFieldError(e.target);
     });
     A.$('#btn-filter-clear').addEventListener('click', function () { setFilter(null); });
 
@@ -1021,11 +1161,14 @@
 
     A.$('#btn-clear-done').addEventListener('click', function () {
       if (!A.hasCompletedGeneral()) return;
-      if (!confirm('清除「一般」分頁所有已完成的任務？此動作無法復原。')) return;
-      var n = A.clearCompletedGeneral();
-      A.render.list('general', { animate: true });
-      A.save();
-      A.toast('已清除 ' + n + ' 筆');
+      A.confirm('清除「一般」分頁所有已完成的任務？可以在設定的「已刪除的任務」找回。', { ok: '清除' })
+        .then(function (ok) {
+          if (!ok) return;
+          var n = A.clearCompletedGeneral();
+          A.render.list('general', { animate: true });
+          A.save();
+          A.toast('已清除 ' + n + ' 筆');
+        });
     });
 
     /* 任務 sheet */
