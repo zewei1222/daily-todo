@@ -141,34 +141,140 @@
     A.$('#repeat-summary').textContent = A.repeatLabel(sheetRepeatPreview());
   }
 
-  /* ---- 進度條模塊（只有日常任務有） ---- */
-  var sheetProgress = false;      /* 模塊目前是否在 sheet 裡 */
+  /* ---- 模塊列表：進度條（日常限定、最多一個）＋ 步驟（可多個）。
+     加入的順序就是顯示順序（先加的在上），DOM 是 sheet 開著時的唯一真相，儲存時再從 DOM 收。 ---- */
+  var modulesHost = null;
+  function modulesEl() { return modulesHost || (modulesHost = A.$('#modules')); }
 
-  function setProgressModule(on, values) {
-    sheetProgress = !!on;
-    var g = A.$('#group-progress');
-    g.hidden = !sheetProgress || sheetType !== 'daily';
-    if (!sheetProgress) return;
-    A.$('#input-prog-cur').value = values && values.current != null ? String(values.current) : '';
-    A.$('#input-prog-target').value = values && values.target != null ? String(values.target) : '';
-    A.$('#input-prog-step').value = values && values.step != null ? String(values.step) : '1';
+  function makeHead(title, minusLabel) {
+    var head = A.el('div', 'group-head');
+    head.appendChild(A.el('span', 'group-title', title));
+    var minus = A.el('button', 'btn-minus', '−');
+    minus.type = 'button';
+    minus.dataset.act = 'remove';
+    minus.setAttribute('aria-label', minusLabel);
+    head.appendChild(minus);
+    return head;
   }
 
-  function addProgressModule() {
-    if (sheetProgress) { A.toast('已經有進度條了'); return; }
-    setProgressModule(true, null);
-    var g = A.$('#group-progress');
-    g.scrollIntoView({ block: 'nearest' });
-    A.$('#input-prog-cur').focus();
+  function numberInput(field, min, placeholder, value) {
+    var i = A.el('input', 'input is-inline');
+    i.type = 'number'; i.min = String(min); i.step = '1'; i.inputMode = 'numeric';
+    i.dataset.field = field;
+    if (placeholder) i.placeholder = placeholder;
+    if (value != null) i.value = String(value);
+    return i;
   }
 
-  var PROG_FIELD_ID = { current: '#input-prog-cur', target: '#input-prog-target', step: '#input-prog-step' };
+  function buildModule(m) {
+    var box = A.el('div', 'group module');
+    box.dataset.type = m.type;
+
+    if (m.type === 'progress') {
+      box.appendChild(makeHead('進度條', '移除進度條'));
+      [['目前進度', 'current', 0, '0', m.current], ['目標進度', 'target', 1, '10', m.target],
+       ['每次增加', 'step', 1, null, m.step == null ? 1 : m.step]].forEach(function (r) {
+        var row = A.el('div', 'group-row');
+        row.appendChild(A.el('span', 'row-label', r[0]));
+        row.appendChild(numberInput(r[1], r[2], r[3], r[4]));
+        box.appendChild(row);
+      });
+      box.appendChild(A.el('p', 'hint', '三個都要填才能建立／儲存；不需要就按右上角的 − 移除。'));
+      return box;
+    }
+
+    /* step */
+    box.dataset.id = m.id || A.uuid();
+    box.classList.toggle('is-done', !!m.done);
+    box.appendChild(makeHead('步驟', '移除步驟'));
+    var row = A.el('div', 'step-row');
+    var chk = A.el('button', 'step-check');
+    chk.type = 'button';
+    chk.dataset.act = 'toggle';
+    chk.setAttribute('aria-pressed', m.done ? 'true' : 'false');
+    chk.setAttribute('aria-label', '完成步驟');
+    chk.appendChild(A.el('span', null, '✓'));
+    row.appendChild(chk);
+    var title = A.el('input', 'input step-title');
+    title.type = 'text'; title.maxLength = A.STEP_TITLE_MAX;
+    title.autocomplete = 'off'; title.setAttribute('autocapitalize', 'sentences'); title.enterKeyHint = 'done';
+    title.placeholder = '步驟名稱';
+    title.dataset.field = 'title';
+    title.value = m.title || '';
+    row.appendChild(title);
+    box.appendChild(row);
+    return box;
+  }
+
+  function setModules(list) {
+    var host = modulesEl();
+    host.textContent = '';
+    (list || []).forEach(function (m) { host.appendChild(buildModule(m)); });
+  }
+
+  function hasProgressModule() { return !!A.$('.module[data-type="progress"]', modulesEl()); }
+
+  function addModule(type) {
+    if (type === 'progress') {
+      if (sheetType !== 'daily') { A.toast('一般任務沒有進度條'); return; }
+      if (hasProgressModule()) { A.toast('已經有進度條了'); return; }
+    }
+    var box = buildModule(type === 'progress' ? { type: 'progress' } : { type: 'step', title: '', done: false });
+    modulesEl().appendChild(box);          /* 接在最後：先加的在上 */
+    box.scrollIntoView({ block: 'nearest' });
+    var first = A.$('input', box);
+    if (first) first.focus();
+  }
+
+  function onModulesClick(e) {
+    var box = e.target.closest('.module');
+    if (!box) return;
+    var btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    if (btn.dataset.act === 'toggle') {
+      var on = btn.getAttribute('aria-pressed') !== 'true';
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      box.classList.toggle('is-done', on);
+      return;
+    }
+    if (btn.dataset.act === 'remove') {
+      if (box.dataset.type === 'progress') {
+        if (!confirm('移除進度條？已填的數值會一起清掉。')) return;
+      } else {
+        var t = A.$('.step-title', box);
+        if (t && t.value.trim() && !confirm('移除步驟「' + t.value.trim() + '」？')) return;
+      }
+      box.remove();
+    }
+  }
+
+  /* 從 DOM 收模塊；第一個有問題的欄位回 { ok:false, error, el } */
+  function collectModules() {
+    var out = [], boxes = A.$$('.module', modulesEl());
+    for (var i = 0; i < boxes.length; i++) {
+      var box = boxes[i];
+      if (box.dataset.type === 'progress') {
+        if (sheetType !== 'daily') continue;               /* 一般任務：忽略被藏起來的進度條 */
+        var f = function (k) { return A.$('[data-field="' + k + '"]', box); };
+        var chk = A.checkProgressInput(f('current').value, f('target').value, f('step').value);
+        if (!chk.ok) return { ok: false, error: chk.error, el: f(chk.field) };
+        out.push({ type: 'progress', current: chk.value.current, target: chk.value.target, step: chk.value.step });
+      } else {
+        var titleEl = A.$('.step-title', box);
+        var title = titleEl.value.trim();
+        if (!title) return { ok: false, error: '步驟還沒填名稱：請填寫，或按右上角 − 移除這個步驟', el: titleEl };
+        out.push({ type: 'step', id: box.dataset.id, title: title,
+                   done: A.$('.step-check', box).getAttribute('aria-pressed') === 'true' });
+      }
+    }
+    return { ok: true, modules: out };
+  }
 
   function applySheetType() {
     A.$('#group-schedule').hidden = sheetType !== 'daily';
-    A.$('#group-progress').hidden = sheetType !== 'daily' || !sheetProgress;
-    A.$('#sheet-fab').hidden = sheetType !== 'daily';
-    if (sheetType !== 'daily' && sheetFab) sheetFab.close();
+    modulesEl().classList.toggle('is-general', sheetType !== 'daily');
+    A.$('#fab-opt-progress').hidden = sheetType !== 'daily';     /* 一般任務的輪盤只有「步驟」 */
+    if (sheetFab) sheetFab.close();
     A.$('#sheet-task-title').textContent =
       (editingId ? '編輯' : '新增') + (sheetType === 'daily' ? '日常任務' : '一般任務');
     A.$$('#seg-type button').forEach(function (b) {
@@ -190,7 +296,7 @@
 
     var r = task && task.type === 'daily' ? A.repeatRule(task) : { unit: 'day', interval: 1 };
     sheetUnit = r.unit;
-    setProgressModule(!!(task && task.progress), task ? task.progress : null);
+    setModules(task ? task.modules : []);
     A.$('#input-interval').value = String(r.interval);
     A.$('#input-start').value = (task && task.start_date) ? task.start_date : A.logicalToday();
 
@@ -217,20 +323,15 @@
     var fields = collectSheetFields();
     if (!fields.title) { A.toast('請輸入任務標題'); A.$('#input-title').focus(); return; }
 
-    /* 進度條模塊在 sheet 裡就必須填完整，否則不能建立／儲存 */
-    fields.progress = null;
-    if (sheetType === 'daily' && sheetProgress) {
-      var chk = A.checkProgressInput(A.$('#input-prog-cur').value, A.$('#input-prog-target').value,
-                                     A.$('#input-prog-step').value);
-      if (!chk.ok) {
-        A.toast(chk.error, 3200);
-        var bad = A.$(PROG_FIELD_ID[chk.field]);
-        bad.scrollIntoView({ block: 'center' });
-        bad.focus();
-        return;
-      }
-      fields.progress = chk.value;
+    /* 模塊在 sheet 裡就必須填完整（進度條三個值、步驟名稱），否則不能建立／儲存 */
+    var mods = collectModules();
+    if (!mods.ok) {
+      A.toast(mods.error, 3200);
+      mods.el.scrollIntoView({ block: 'center' });
+      mods.el.focus();
+      return;
     }
+    fields.modules = mods.modules;
 
     if (editingId) {
       var t = A.updateTask(editingId, fields);
@@ -481,12 +582,9 @@
     /* 任務 sheet 的 ＋：短按也開輪盤（它沒有別的短按動作） */
     sheetFab = attachFab(A.$('#sheet-fab'), A.$('#sheet-fab-menu'), {
       tap: function () { sheetFab.open(); },
-      option: function (act) { if (act === 'progress') addProgressModule(); }
+      option: function (act) { addModule(act); }
     });
-    A.$('#btn-progress-remove').addEventListener('click', function () {
-      if (!confirm('移除進度條？已填的數值會一起清掉。')) return;
-      setProgressModule(false);
-    });
+    modulesEl().addEventListener('click', onModulesClick);
   }
 
   /* ================= 排序 Sheet =================

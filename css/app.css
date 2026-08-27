@@ -1020,3 +1020,36 @@ textarea.input {
   line-height: 1;
 }
 .btn-minus:active { transform: scale(var(--press-scale)); background: var(--c-danger); color: var(--c-on-danger); }
+
+/* ---------- 任務 sheet 的模塊列表 ---------- */
+/* 一般任務沒有進度條：切到一般時把已加入的進度條模塊藏起來（儲存時也不會收） */
+.modules.is-general > .module[data-type="progress"] { display: none; }
+
+/* 步驟：左側圓圈切換完成、右側輸入名稱 */
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.step-check {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-min);
+  height: var(--hit-min);
+  border-radius: var(--r-pill);
+  background: var(--c-bg);
+  color: var(--c-on-accent);
+  font-size: var(--fs-3);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.step-check > span { opacity: 0; transform: scale(0.5);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+.step-check[aria-pressed="true"] { background: var(--c-accent); }
+.step-check[aria-pressed="true"] > span { opacity: 1; transform: scale(1); }
+.step-check:active { transform: scale(var(--press-scale)); }
+.step-title { flex: 1 1 auto; min-width: 0; }
+.module.is-done .step-title { color: var(--c-ink-2); text-decoration: line-through; }

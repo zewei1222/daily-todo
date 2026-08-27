@@ -125,8 +125,8 @@
     tagsEl.hidden = !tags;
 
     var progEl = A.$('.card-progress', row);
-    var prog = task.type === 'daily' && task.progress
-             ? '進度 ' + task.progress.current + ' / ' + task.progress.target : '';
+    var pm = A.taskProgress(task);
+    var prog = pm ? '進度 ' + pm.current + ' / ' + pm.target : '';   /* 步驟刻意不顯示在卡片上 */
     if (progEl.textContent !== prog) progEl.textContent = prog;
     progEl.hidden = !prog;
 

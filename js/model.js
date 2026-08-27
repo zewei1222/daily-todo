@@ -194,9 +194,47 @@
       });
   };
 
-  /* ================= 進度條（日常任務可選的附加功能） =================
-     task.progress = { current, target, step } 或 null。三個都是整數：
-     target ≥ 1、step ≥ 1、0 ≤ current ≤ target。 */
+  /* ================= 模塊（任務可選的附加功能，有序） =================
+     task.modules = [ { type:'progress', current, target, step },   最多一個，只有日常任務
+                      { type:'step', id, title, done }, ... ]        步驟＝子任務，可多個
+     順序就是使用者在 sheet 裡加入的順序（先加的在上）。步驟只在任務 sheet 裡看得到，卡片不顯示。
+     進度條三個值都是整數：target ≥ 1、step ≥ 1、0 ≤ current ≤ target。 */
+  A.STEP_TITLE_MAX = 80;
+
+  A.normModules = function (raw, legacyProgress, allowProgress) {
+    var out = [], hasProgress = false;
+    (Array.isArray(raw) ? raw : []).forEach(function (m) {
+      if (!m || typeof m !== 'object') return;
+      if (m.type === 'progress') {
+        if (!allowProgress || hasProgress) return;
+        var p = A.normProgress(m);
+        if (!p) return;
+        hasProgress = true;
+        out.push({ type: 'progress', current: p.current, target: p.target, step: p.step });
+      } else if (m.type === 'step') {
+        var title = typeof m.title === 'string' ? m.title.trim().slice(0, A.STEP_TITLE_MAX) : '';
+        if (!title) return;
+        out.push({ type: 'step', id: typeof m.id === 'string' && m.id ? m.id : A.uuid(),
+                   title: title, done: !!m.done });
+      }
+    });
+    /* 舊資料（v7 的 task.progress）轉成模塊，放最前面 */
+    if (allowProgress && !hasProgress && legacyProgress) {
+      var lp = A.normProgress(legacyProgress);
+      if (lp) out.unshift({ type: 'progress', current: lp.current, target: lp.target, step: lp.step });
+    }
+    return out;
+  };
+
+  A.taskProgress = function (task) {
+    var ms = task.modules || [];
+    for (var i = 0; i < ms.length; i++) if (ms[i].type === 'progress') return ms[i];
+    return null;
+  };
+  A.taskSteps = function (task) {
+    return (task.modules || []).filter(function (m) { return m.type === 'step'; });
+  };
+
   A.normProgress = function (raw) {
     if (!raw || typeof raw !== 'object') return null;
     var c = Math.round(Number(raw.current)), t = Math.round(Number(raw.target)), s = Math.round(Number(raw.step));
@@ -444,10 +482,10 @@
         interval: Math.max(1, Math.round(Number(fields.interval) || 1))
       };
       t.history = [];
-      t.progress = A.normProgress(fields.progress);
     } else {
       t.completed_at = null;
     }
+    t.modules = A.normModules(fields.modules, null, type === 'daily');
     A.state.tasks.push(t);
     return t;
   };
@@ -464,8 +502,8 @@
         unit: A.REPEAT_UNITS.indexOf(fields.unit) >= 0 ? fields.unit : 'day',
         interval: Math.max(1, Math.round(Number(fields.interval) || 1))
       };
-      if (fields.progress !== undefined) t.progress = A.normProgress(fields.progress);
     }
+    if (fields.modules !== undefined) t.modules = A.normModules(fields.modules, null, t.type === 'daily');
     return t;
   };
 

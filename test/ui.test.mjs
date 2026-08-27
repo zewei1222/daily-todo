@@ -1406,7 +1406,7 @@ group('N. FAB：短按新增、長按圓弧面板（搜尋 / 編輯順序）');
   await ctx.close();
 }
 
-group('O. 日常任務 sheet 的 ＋：輪盤加入進度條模塊、− 移除、未填完不能儲存');
+group('O. 任務 sheet 的 ＋：輪盤加入進度條模塊、− 移除、未填完不能儲存');
 {
   const ctx = await browser.createBrowserContext();
   const page = await newPage(ctx);
@@ -1415,71 +1415,74 @@ group('O. 日常任務 sheet 的 ＋：輪盤加入進度條模塊、− 移除�
   const sheetFabBox = () => page.$eval('#sheet-fab', el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
   const longPressSheetFab = async () => { const b = await sheetFabBox(); await page.touchscreen.touchStart(b.x, b.y); await sleep(700); await page.touchscreen.touchEnd(); await sleep(350); };
   const setVal = (sel, v) => page.$eval(sel, (i, val) => { i.value = val; i.dispatchEvent(new Event('input', { bubbles: true })); }, v);
+  const PROG = '#modules .module[data-type="progress"]';
+  const F = k => PROG + ' [data-field="' + k + '"]';
+  const modTypes = () => page.$$eval('#modules .module', ms => ms.map(m => m.dataset.type));
 
-  /* 新增日常任務：sheet 右下角有 ＋，一般任務沒有 */
+  /* 新增日常任務：sheet 右下角有 ＋；一般任務也有 ＋ 但輪盤沒有進度條 */
   await tapEl(page, '#fab'); await sleep(300);
   const fabGeo = await page.evaluate(() => {
     const f = document.querySelector('#sheet-fab'), m = document.querySelector('#fab');
     const r = f.getBoundingClientRect(), rm = m.getBoundingClientRect();
-    /* 固定在畫面底部，不跟 --kb-h 浮動（見 README「進度條」） */
-    return { hidden: f.hidden, w: r.width, sameSize: Math.abs(r.width - rm.width) < 1,
-             nearRight: innerWidth - r.right < 40, atBottom: Math.abs((innerHeight - r.bottom) - 16) < 2,
-             progressHidden: document.querySelector('#group-progress').hidden };
+    return { hidden: f.hidden, sameSize: Math.abs(r.width - rm.width) < 1, nearRight: innerWidth - r.right < 40,
+             atBottom: Math.abs((innerHeight - r.bottom) - 16) < 2, modules: document.querySelectorAll('#modules .module').length };
   });
   ok('O1 日常任務 sheet 右下角有同款 ＋', !fabGeo.hidden && fabGeo.sameSize && fabGeo.nearRight && fabGeo.atBottom, fabGeo);
-  eq('O1 一開始沒有進度條模塊', fabGeo.progressHidden, true);
+  eq('O1 一開始沒有任何模塊', fabGeo.modules, 0);
   await tapEl(page, '#seg-type [data-type="general"]'); await sleep(200);
-  eq('O1 切到一般任務 ＋ 隱藏', await page.$eval('#sheet-fab', f => f.hidden), true);
+  eq('O1 切到一般任務：＋ 仍在、輪盤裡的進度條選項隱藏', await page.evaluate(() => [document.querySelector('#sheet-fab').hidden, document.querySelector('#fab-opt-progress').hidden, document.querySelector('#fab-opt-step').hidden]), [false, true, false]);
   await tapEl(page, '#seg-type [data-type="daily"]'); await sleep(200);
-  eq('O1 切回日常 ＋ 出現', await page.$eval('#sheet-fab', f => f.hidden), false);
+  eq('O1 切回日常：進度條選項出現', await page.$eval('#fab-opt-progress', f => f.hidden), false);
 
   /* 長按開輪盤 → 新增進度條 */
   await longPressSheetFab();
-  eq('O2 長按開輪盤，只有一個選項「新增進度條」', await page.$$eval('#sheet-fab-menu .fab-opt', os => [document.querySelector('#sheet-fab-menu').hidden, os.map(o => o.textContent.trim())]), [false, ['新增進度條']]);
+  eq('O2 長按開輪盤，兩個選項', await page.$$eval('#sheet-fab-menu .fab-opt', os => [document.querySelector('#sheet-fab-menu').hidden, os.map(o => o.textContent.trim())]), [false, ['新增進度條', '新增步驟']]);
   await tapEl(page, '#fab-opt-progress'); await sleep(350);
   const mod = await page.evaluate(() => {
-    const g = document.querySelector('#group-progress'), sched = document.querySelector('#group-schedule');
-    return { hidden: g.hidden, belowSchedule: g.getBoundingClientRect().top >= sched.getBoundingClientRect().bottom,
-             minus: document.querySelector('#btn-progress-remove').textContent, step: document.querySelector('#input-prog-step').value,
-             cur: document.querySelector('#input-prog-cur').value, target: document.querySelector('#input-prog-target').value,
+    const g = document.querySelector('#modules .module[data-type="progress"]'), sched = document.querySelector('#group-schedule');
+    const f = k => g.querySelector('[data-field="' + k + '"]').value;
+    return { exists: !!g, belowSchedule: g.getBoundingClientRect().top >= sched.getBoundingClientRect().bottom,
+             minus: g.querySelector('.btn-minus').textContent, step: f('step'), cur: f('current'), target: f('target'),
              menuHidden: document.querySelector('#sheet-fab-menu').hidden };
   });
   ok('O2 模塊出現在預定日程下方，右上角有 −，每次增加預設 1，其餘空白',
-     !mod.hidden && mod.belowSchedule && mod.minus === '−' && mod.step === '1' && mod.cur === '' && mod.target === '' && mod.menuHidden, mod);
+     mod.exists && mod.belowSchedule && mod.minus === '−' && mod.step === '1' && mod.cur === '' && mod.target === '' && mod.menuHidden, mod);
   await longPressSheetFab();
   await tapEl(page, '#fab-opt-progress'); await sleep(350);
-  eq('O2 再選一次：提示已有進度條、欄位不被清掉', [await toast(), await page.$eval('#input-prog-step', i => i.value)], ['已經有進度條了', '1']);
+  eq('O2 再選一次：提示已有進度條、不會多一個', [await toast(), (await modTypes()).length], ['已經有進度條了', 1]);
 
   /* 沒填完不能建立 */
   await setVal('#input-title', '讀書');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
   eq('O3 未填完：sheet 不關、沒建立', [await page.$eval('#sheet-task', s => s.hidden), await page.evaluate(() => App.activeTasks('daily').length)], [false, 0]);
   ok('O3 提示補填或移除', /移除進度條/.test(await toast() || ''), await toast());
-  eq('O3 焦點跳到第一個未填欄位', await page.evaluate(() => document.activeElement.id), 'input-prog-cur');
-  await setVal('#input-prog-cur', '3'); await setVal('#input-prog-target', '10'); await setVal('#input-prog-step', '');
+  eq('O3 焦點跳到第一個未填欄位', await page.evaluate(() => document.activeElement.dataset.field), 'current');
+  await setVal(F('current'), '3'); await setVal(F('target'), '10'); await setVal(F('step'), '');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
-  eq('O3 只缺每次增加也擋下、焦點到該欄', [await page.$eval('#sheet-task', s => s.hidden), await page.evaluate(() => document.activeElement.id)], [false, 'input-prog-step']);
-  await setVal('#input-prog-step', '2'); await setVal('#input-prog-cur', '12');
+  eq('O3 只缺每次增加也擋下、焦點到該欄', [await page.$eval('#sheet-task', s => s.hidden), await page.evaluate(() => document.activeElement.dataset.field)], [false, 'step']);
+  await setVal(F('step'), '2'); await setVal(F('current'), '12');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
   eq('O3 目前超過目標也擋下', [await page.$eval('#sheet-task', s => s.hidden), await toast()], [false, '目前進度不能超過目標進度']);
 
   /* 填完 → 建立成功，卡片顯示進度 */
-  await setVal('#input-prog-cur', '3');
+  await setVal(F('current'), '3');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
   eq('O4 填完可建立', await page.$eval('#sheet-task', s => s.hidden), true);
-  eq('O4 任務帶 progress', await page.evaluate(() => App.activeTasks('daily')[0].progress), { current: 3, target: 10, step: 2 });
+  eq('O4 任務帶進度條模塊', await page.evaluate(() => App.taskProgress(App.activeTasks('daily')[0])), { type: 'progress', current: 3, target: 10, step: 2 });
   eq('O4 卡片顯示進度', await page.$eval('#list-daily .card-progress', p => p.hidden ? null : p.textContent), '進度 3 / 10');
 
-  /* 編輯：模塊帶回；− 移除（confirm）→ 儲存後 progress 為 null */
+  /* 編輯：模塊帶回；− 移除（confirm）→ 儲存後沒有進度條 */
   await tapEl(page, '#list-daily .row:first-child .card-body'); await sleep(300);
-  eq('O5 編輯時模塊帶回數值', await page.evaluate(() => [document.querySelector('#group-progress').hidden, document.querySelector('#input-prog-cur').value,
-     document.querySelector('#input-prog-target').value, document.querySelector('#input-prog-step').value]), [false, '3', '10', '2']);
+  eq('O5 編輯時模塊帶回數值', await page.evaluate(() => {
+    const g = document.querySelector('#modules .module[data-type="progress"]');
+    return [!!g, ...['current', 'target', 'step'].map(k => g.querySelector('[data-field="' + k + '"]').value)];
+  }), [true, '3', '10', '2']);
   page.__dialogs.length = 0;
-  await tapEl(page, '#btn-progress-remove'); await sleep(200);
+  await tapEl(page, PROG + ' .btn-minus'); await sleep(200);
   ok('O5 − 會跳確認', page.__dialogs.length === 1 && /移除進度條/.test(page.__dialogs[0]), page.__dialogs);
-  eq('O5 確認後模塊消失', await page.$eval('#group-progress', g => g.hidden), true);
+  eq('O5 確認後模塊消失', await modTypes(), []);
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
-  eq('O5 儲存後 progress 移除、卡片不再顯示', await page.evaluate(() => [App.activeTasks('daily')[0].progress, document.querySelector('#list-daily .card-progress').hidden]), [null, true]);
+  eq('O5 儲存後進度條移除、卡片不再顯示', await page.evaluate(() => [App.taskProgress(App.activeTasks('daily')[0]), document.querySelector('#list-daily .card-progress').hidden]), [null, true]);
 
   /* 沒加模塊照常建立；取消不留殘影 */
   await tapEl(page, '#fab'); await sleep(300);
@@ -1487,10 +1490,10 @@ group('O. 日常任務 sheet 的 ＋：輪盤加入進度條模塊、− 移除�
   await tapEl(page, '#fab-opt-progress'); await sleep(300);
   await tapEl(page, '#sheet-task [data-act="cancel"]'); await sleep(300);
   await tapEl(page, '#fab'); await sleep(300);
-  eq('O6 取消後重開 sheet，模塊不會殘留', await page.$eval('#group-progress', g => g.hidden), true);
-  await setVal('#input-title', '無進度');
+  eq('O6 取消後重開 sheet，模塊不會殘留', await modTypes(), []);
+  await setVal('#input-title', '無模塊');
   await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
-  eq('O6 沒有模塊照常建立', await page.evaluate(() => App.activeTasks('daily').map(t => [t.title, t.progress])), [['讀書', null], ['無進度', null]]);
+  eq('O6 沒有模塊照常建立', await page.evaluate(() => App.activeTasks('daily').map(t => [t.title, t.modules])), [['讀書', []], ['無模塊', []]]);
 
   /* sheet 的 ＋ 短按也開輪盤；關 sheet 時輪盤一起收 */
   await tapEl(page, '#fab'); await sleep(300);
@@ -1501,13 +1504,15 @@ group('O. 日常任務 sheet 的 ＋：輪盤加入進度條模塊、− 移除�
   await ctx.close();
 }
 
-group('P. 任務 sheet：欄位字級 ≥ 16px（iOS 不放大）、主色塊跟著捲、滑得到進度條模塊');
+group('P. 任務 sheet：欄位字級 ≥ 16px（iOS 不放大）、主色塊跟著捲、滑得到模塊');
 {
   const ctx = await browser.createBrowserContext();
   const page = await newPage(ctx);
   await page.goto(URL, { waitUntil: 'load' });
-
-  eq('P1 所有可輸入欄位字級 ≥ 16px', await page.evaluate(() => {
+  await tapEl(page, '#fab'); await sleep(300);
+  await page.evaluate(() => { document.querySelector('#fab-opt-progress').click(); });
+  await sleep(300);
+  eq('P1 所有可輸入欄位字級 ≥ 16px（含動態產生的模塊欄位）', await page.evaluate(() => {
     const bad = [];
     document.querySelectorAll('input:not([type="date"]):not([type="checkbox"]), textarea, select').forEach(el => {
       const fs = parseFloat(getComputedStyle(el).fontSize);
@@ -1515,35 +1520,117 @@ group('P. 任務 sheet：欄位字級 ≥ 16px（iOS 不放大）、主色塊跟
     });
     return bad;
   }), []);
-
-  await tapEl(page, '#fab'); await sleep(300);
   const before = await page.evaluate(() => {
     const body = document.querySelector('#sheet-task .sheet-body');
     const hero = document.querySelector('#sheet-task .sheet-hero');
     const head = document.querySelector('#sheet-task .sheet-head');
     return { heroInBody: body.contains(hero), headOutsideBody: !body.contains(head), headTop: head.getBoundingClientRect().top,
-             heroTop: Math.round(hero.getBoundingClientRect().top), headBg: getComputedStyle(head).backgroundColor, heroBg: getComputedStyle(hero).backgroundColor,
+             headBg: getComputedStyle(head).backgroundColor, heroBg: getComputedStyle(hero).backgroundColor,
              titleTop: document.querySelector('#input-title').getBoundingClientRect().top };
   });
   ok('P2 主色塊在捲動區裡、標題列釘在外面', before.heroInBody && before.headOutsideBody && before.headTop === 0, before);
   ok('P2 標題列與主色塊同色，且標題輸入框一開始就在上方', before.headBg === before.heroBg && before.titleTop < 200, before);
 
-  /* 加入進度條模塊後，把 sheet 捲到底：模塊完整在畫面內、主色塊已捲出畫面 */
-  await page.evaluate(() => { document.querySelector('#fab-opt-progress').click(); });
-  await sleep(300);
   await page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
   await page.evaluate(() => { const b = document.querySelector('#sheet-task .sheet-body'); b.scrollTop = b.scrollHeight; });
   await sleep(150);
   const after = await page.evaluate(() => {
-    const g = document.querySelector('#group-progress').getBoundingClientRect();
+    const g = document.querySelector('#modules .module[data-type="progress"]').getBoundingClientRect();
     const hero = document.querySelector('#sheet-task .sheet-hero').getBoundingClientRect();
     const head = document.querySelector('#sheet-task .sheet-head').getBoundingClientRect();
+    const st = document.querySelector('#modules [data-field="step"]').getBoundingClientRect();
     return { modTop: Math.round(g.top), modBottom: Math.round(g.bottom), h: innerHeight, heroBottom: Math.round(hero.bottom), headTop: head.top,
-             stepVisible: (() => { const r = document.querySelector('#input-prog-step').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })() };
+             stepVisible: st.top >= 0 && st.bottom <= innerHeight };
   });
   ok('P3 捲到底後進度條模塊完整在畫面內', after.modTop >= 0 && after.modBottom <= after.h && after.stepVisible, after);
-  /* 內容不一定長到能把主色塊整個捲出去；捲動後它的底邊明顯上移即可（釘死時會停在 ~380） */
   ok('P3 主色塊跟著捲走、標題列仍釘在上面', after.heroBottom < 300 && after.headTop === 0, after);
+  await ctx.close();
+}
+
+group('Q. 步驟模塊：可多個、依加入順序、圓圈切換完成、只在 sheet 裡看得到');
+{
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(ctx);
+  await page.goto(URL, { waitUntil: 'load' });
+  const toast = () => page.$eval('#toast', t => t.hidden ? null : t.textContent);
+  const setVal = (sel, v) => page.$eval(sel, (i, val) => { i.value = val; i.dispatchEvent(new Event('input', { bubbles: true })); }, v);
+  const addMod = async (act) => { await page.evaluate((a) => document.querySelector('#fab-opt-' + a).click(), act); await sleep(250); };
+  const modTypes = () => page.$$eval('#modules .module', ms => ms.map(m => m.dataset.type));
+  /* 注意：:nth-of-type 是按 div 序數算、不看屬性，選第 N 個步驟一律用索引 */
+  const tapStepMinus = async (i) => { const ms = await page.$$('#modules .module[data-type="step"] .btn-minus'); await ms[i].evaluate(b => b.click()); await sleep(200); };
+
+  await tapEl(page, '#fab'); await sleep(300);
+  await setVal('#input-title', '搬家');
+  await addMod('step');
+  eq('Q1 加一個步驟模塊：左圓圈、右輸入框、右上角 −', await page.evaluate(() => {
+    const m = document.querySelector('#modules .module[data-type="step"]');
+    const chk = m.querySelector('.step-check'), inp = m.querySelector('.step-title');
+    return [!!chk, !!inp, m.querySelector('.btn-minus').textContent, chk.getBoundingClientRect().left < inp.getBoundingClientRect().left,
+            chk.getAttribute('aria-pressed'), document.activeElement === inp];
+  }), [true, true, '−', true, 'false', true]);
+  await addMod('step');
+  await addMod('progress');
+  await addMod('step');
+  eq('Q2 每按一次接一個在最後；先加的在上', await modTypes(), ['step', 'step', 'progress', 'step']);
+
+  /* 空名稱的步驟擋下儲存 */
+  await setVal('#modules .module[data-type="progress"] [data-field="current"]', '0');
+  await setVal('#modules .module[data-type="progress"] [data-field="target"]', '3');
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('Q3 步驟沒填名稱：不能建立、提示、聚焦第一個空的', [await page.$eval('#sheet-task', s => s.hidden), /步驟/.test(await toast() || ''),
+     await page.evaluate(() => document.activeElement.classList.contains('step-title') && document.activeElement.closest('.module') === document.querySelector('#modules .module'))], [false, true, true]);
+
+  /* 填名稱、勾第二個完成，建立 */
+  await (await page.$$('#modules .module[data-type="step"] .step-title'))[0].evaluate((i) => { i.value = '打包'; i.dispatchEvent(new Event('input', { bubbles: true })); });
+  const stepInputs = await page.$$('#modules .module[data-type="step"] .step-title');
+  await stepInputs[1].evaluate((i) => { i.value = '叫車'; i.dispatchEvent(new Event('input', { bubbles: true })); });
+  await stepInputs[2].evaluate((i) => { i.value = '清潔'; i.dispatchEvent(new Event('input', { bubbles: true })); });
+  const checks = await page.$$('#modules .module[data-type="step"] .step-check');
+  await checks[1].evaluate(b => b.click());
+  await sleep(100);
+  eq('Q4 圓圈點一下變完成（aria-pressed、模塊 is-done）', await page.evaluate(() => {
+    const ms = document.querySelectorAll('#modules .module[data-type="step"]');
+    return [ms[1].querySelector('.step-check').getAttribute('aria-pressed'), ms[1].classList.contains('is-done'), ms[0].classList.contains('is-done')];
+  }), ['true', true, false]);
+  await checks[1].evaluate(b => b.click()); await sleep(50);
+  await checks[1].evaluate(b => b.click()); await sleep(50);
+  eq('Q4 再點兩下：切回未完成再完成', await page.$$eval('#modules .module[data-type="step"] .step-check', cs => cs.map(c => c.getAttribute('aria-pressed'))), ['false', 'true', 'false']);
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  const saved = await page.evaluate(() => App.activeTasks('daily')[0].modules.map(m => m.type === 'step' ? [m.type, m.title, m.done] : [m.type, m.current, m.target, m.step]));
+  eq('Q5 儲存保留順序、名稱、完成狀態', saved, [['step', '打包', false], ['step', '叫車', true], ['progress', 0, 3, 1], ['step', '清潔', false]]);
+  ok('Q5 步驟有 id', await page.evaluate(() => App.taskSteps(App.activeTasks('daily')[0]).every(s => typeof s.id === 'string' && s.id)));
+
+  /* 卡片上不顯示步驟 */
+  eq('Q6 卡片不顯示步驟、只顯示進度', await page.evaluate(() => {
+    const card = document.querySelector('#list-daily .card');
+    return [card.textContent.includes('打包') || card.textContent.includes('叫車'), card.querySelector('.card-progress').textContent];
+  }), [false, '進度 0 / 3']);
+
+  /* 點進任務才看得到；順序原樣；− 移除有名稱的步驟會確認 */
+  await tapEl(page, '#list-daily .row:first-child .card-body'); await sleep(300);
+  eq('Q7 重開 sheet 模塊順序原樣', await modTypes(), ['step', 'step', 'progress', 'step']);
+  eq('Q7 名稱與完成狀態帶回', await page.$$eval('#modules .module[data-type="step"]', ms => ms.map(m => [m.querySelector('.step-title').value, m.querySelector('.step-check').getAttribute('aria-pressed')])),
+     [['打包', 'false'], ['叫車', 'true'], ['清潔', 'false']]);
+  page.__dialogs.length = 0;
+  await tapStepMinus(0);
+  ok('Q7 移除有名稱的步驟會確認', page.__dialogs.length === 1 && /打包/.test(page.__dialogs[0]), page.__dialogs);
+  eq('Q7 移除後其餘順序不變', await modTypes(), ['step', 'progress', 'step']);
+  await addMod('step');
+  page.__dialogs.length = 0;
+  await tapStepMinus(2);
+  eq('Q7 移除空白步驟不必確認', [page.__dialogs.length, (await modTypes()).length], [0, 3]);
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('Q7 儲存後資料同步', await page.evaluate(() => App.activeTasks('daily')[0].modules.map(m => m.type === 'step' ? m.title : 'progress')), ['叫車', 'progress', '清潔']);
+
+  /* 一般任務：也能加步驟；進度條選項隱藏、加了也不會存 */
+  await tapEl(page, '.tab[data-tab="general"]'); await sleep(250);
+  await tapEl(page, '#fab'); await sleep(300);
+  await setVal('#input-title', '報稅');
+  eq('Q8 一般任務輪盤只有步驟', await page.evaluate(() => [document.querySelector('#fab-opt-progress').hidden, document.querySelector('#fab-opt-step').hidden]), [true, false]);
+  await addMod('step');
+  await setVal('#modules .module[data-type="step"] .step-title', '準備文件');
+  await tapEl(page, '#sheet-task [data-act="save"]'); await sleep(300);
+  eq('Q8 一般任務存下步驟', await page.evaluate(() => App.activeTasks('general')[0].modules.map(m => [m.type, m.title])), [['step', '準備文件']]);
   await ctx.close();
 }
 

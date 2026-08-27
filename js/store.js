@@ -98,12 +98,13 @@
       t.history = hist;
       t.start_date = deriveStartDate(raw, hist, today);
       t.repeat = normRepeat(raw.repeat);
-      /* 進度條：可選，壞資料一律變 null（不讓一筆爛資料弄掉整個任務） */
-      t.progress = A.normProgress(raw.progress);
     } else {
       t.completed_at = typeof raw.completed_at === 'string' && raw.completed_at
         ? raw.completed_at : null;
     }
+    /* 模塊（進度條／步驟）：可選；壞的個別丟掉，不讓一筆爛資料弄掉整個任務。
+       v7 的 task.progress 在這裡轉成模塊（只有日常任務有進度條）。 */
+    t.modules = A.normModules(raw.modules, type === 'daily' ? raw.progress : null, type === 'daily');
     return t;
   }
 

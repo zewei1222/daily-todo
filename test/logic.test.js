@@ -549,23 +549,40 @@ eq('checkProgressInput 範圍檢查', [A.checkProgressInput('-1', '10', '1').fie
 eq('checkProgressInput 通過', A.checkProgressInput(' 2 ', '10', '3'), { ok: true, value: { current: 2, target: 10, step: 3 } });
 
 setState([]);
-var pd = A.addTask('daily', { title: 'p', progress: { current: 1, target: 5, step: 1 } });
-eq('addTask 日常寫入 progress', pd.progress, { current: 1, target: 5, step: 1 });
+var pd = A.addTask('daily', { title: 'p', modules: [{ type: 'progress', current: 1, target: 5, step: 1 }] });
+eq('addTask 日常寫入進度條模塊', A.taskProgress(pd), { type: 'progress', current: 1, target: 5, step: 1 });
 var pd2 = A.addTask('daily', { title: 'q' });
-eq('addTask 沒給 → null', pd2.progress, null);
-var pg = A.addTask('general', { title: 'g', progress: { current: 1, target: 5, step: 1 } });
-eq('addTask 一般任務沒有 progress 欄位', 'progress' in pg, false);
-A.updateTask(pd.id, { title: 'p', progress: null });
-eq('updateTask progress:null 移除', A.findTask(pd.id).progress, null);
-A.updateTask(pd.id, { title: 'p', progress: { current: 2, target: 8, step: 2 } });
-eq('updateTask 設定 progress', A.findTask(pd.id).progress, { current: 2, target: 8, step: 2 });
+eq('addTask 沒給 → 空模塊', [pd2.modules, A.taskProgress(pd2), A.taskSteps(pd2)], [[], null, []]);
+var pg = A.addTask('general', { title: 'g', modules: [{ type: 'progress', current: 1, target: 5, step: 1 }, { type: 'step', title: 's1' }] });
+eq('addTask 一般任務：進度條被丟掉、步驟保留', pg.modules.map(function (m) { return m.type; }), ['step']);
+A.updateTask(pd.id, { title: 'p', modules: [] });
+eq('updateTask modules:[] 清空', A.findTask(pd.id).modules, []);
+A.updateTask(pd.id, { title: 'p', modules: [{ type: 'step', id: 's-a', title: ' 買菜 ', done: 1 }, { type: 'progress', current: 2, target: 8, step: 2 }] });
+eq('updateTask 保留加入順序（步驟在前、進度條在後）', A.findTask(pd.id).modules,
+   [{ type: 'step', id: 's-a', title: '買菜', done: true }, { type: 'progress', current: 2, target: 8, step: 2 }]);
 A.updateTask(pd.id, { title: 'p2' });
-eq('updateTask 未給 progress 時不動它', A.findTask(pd.id).progress, { current: 2, target: 8, step: 2 });
+eq('updateTask 未給 modules 時不動它', A.findTask(pd.id).modules.length, 2);
+
+group('模塊：normModules / 舊 progress 轉換 / normalizeState');
+eq('normModules 非陣列 → 空', [A.normModules(null, null, true), A.normModules('x', null, true)], [[], []]);
+eq('normModules 進度條最多一個（留第一個）', A.normModules([{ type: 'progress', current: 1, target: 5, step: 1 },
+   { type: 'progress', current: 2, target: 6, step: 1 }], null, true).length, 1);
+eq('normModules 壞的進度條丟掉、壞的步驟（空名稱）丟掉', A.normModules([{ type: 'progress', current: 'x' }, { type: 'step', title: '   ' },
+   { type: 'step', title: 'ok' }, { type: 'nope' }], null, true).map(function (m) { return m.type; }), ['step']);
+eq('normModules 步驟補 id、done 轉布林、名稱截 80 字', (function () {
+  var m = A.normModules([{ type: 'step', title: 'x'.repeat(100), done: 'yes' }], null, true)[0];
+  return [typeof m.id === 'string' && m.id.length > 0, m.done, m.title.length];
+})(), [true, true, 80]);
+eq('normModules 舊 task.progress → 進度條模塊放最前面', A.normModules([{ type: 'step', title: 's' }], { current: 1, target: 3, step: 1 }, true).map(function (m) { return m.type; }), ['progress', 'step']);
+eq('normModules 已有進度條模塊時忽略舊 progress', A.normModules([{ type: 'progress', current: 2, target: 3, step: 1 }], { current: 1, target: 9, step: 1 }, true)[0].current, 2);
+eq('normModules 一般任務不收進度條（含舊 progress）', A.normModules([{ type: 'progress', current: 1, target: 3, step: 1 }], { current: 1, target: 3, step: 1 }, false), []);
 var ns = A.normalizeState({ tasks: [{ id: 'a', type: 'daily', title: 'a', progress: { current: '1', target: '3', step: '1' } },
-                                    { id: 'b', type: 'daily', title: 'b', progress: 'garbage' },
-                                    { id: 'c', type: 'daily', title: 'c' }] });
-eq('normalizeState 正規化 progress；壞的變 null、沒有也是 null', ns.tasks.map(function (t) { return t.progress; }),
-   [{ current: 1, target: 3, step: 1 }, null, null]);
+                                    { id: 'b', type: 'daily', title: 'b', modules: [{ type: 'step', id: 'k', title: 'k', done: false }, { type: 'progress', current: 0, target: 2, step: 1 }] },
+                                    { id: 'c', type: 'general', title: 'c', modules: [{ type: 'progress', current: 0, target: 2, step: 1 }, { type: 'step', id: 'z', title: 'z' }] },
+                                    { id: 'd', type: 'daily', title: 'd' }] });
+eq('normalizeState：v7 progress 轉模塊、modules 保序、一般任務丟進度條、沒有就空陣列',
+   ns.tasks.map(function (t) { return t.modules.map(function (m) { return m.type; }); }), [['progress'], ['step', 'progress'], ['step'], []]);
+eq('normalizeState 後不再有 task.progress 欄位', ns.tasks.some(function (t) { return 'progress' in t; }), false);
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

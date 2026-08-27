@@ -7,7 +7,7 @@
 <meta name="description" content="極簡重複待辦清單">
 <meta name="theme-color" content="#000000">
 <!-- 版本標記：與 sw.js 的 CACHE_VERSION 同號，App 靠它判斷有沒有新版 -->
-<meta name="app-version" content="8">
+<meta name="app-version" content="9">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -208,39 +208,19 @@
         </div>
       </div>
 
-      <!-- 進度條（可選）：由右下角 ＋ 的輪盤加入；右上角 − 移除 -->
-      <div class="group" id="group-progress" hidden>
-        <div class="group-head">
-          <span class="group-title">進度條</span>
-          <button class="btn-minus" id="btn-progress-remove" type="button" aria-label="移除進度條">−</button>
-        </div>
-        <div class="group-row">
-          <span class="row-label">目前進度</span>
-          <input class="input is-inline" id="input-prog-cur" type="number" min="0" step="1"
-                 inputmode="numeric" placeholder="0">
-        </div>
-        <div class="group-row">
-          <span class="row-label">目標進度</span>
-          <input class="input is-inline" id="input-prog-target" type="number" min="1" step="1"
-                 inputmode="numeric" placeholder="10">
-        </div>
-        <div class="group-row">
-          <span class="row-label">每次增加</span>
-          <input class="input is-inline" id="input-prog-step" type="number" min="1" step="1"
-                 inputmode="numeric" value="1">
-        </div>
-        <p class="hint">三個都要填才能建立／儲存；不需要就按右上角的 − 移除。</p>
-      </div>
+      <!-- 模塊列表（進度條／步驟）：由右下角 ＋ 的輪盤加入，先加的在上；每個模塊右上角 − 移除。
+           內容由 main.js 的 buildModule 產生。 -->
+      <div class="modules" id="modules"></div>
 
     </div>
   </div>
 
-  <!-- 日常任務專用：右下角 ＋，短按／長按都開輪盤，目前只有「新增進度條」 -->
+  <!-- 右下角 ＋：短按／長按都開輪盤，加入模塊。進度條只有日常任務有；步驟兩種任務都有、可多個 -->
   <button class="fab is-sheet" id="sheet-fab" type="button" aria-label="任務附加功能（長按開選單）">
     <span class="fab-plus" aria-hidden="true">＋</span>
   </button>
   <div class="fab-menu is-sheet" id="sheet-fab-menu" hidden>
-    <button class="fab-opt is-c" id="fab-opt-progress" data-act="progress" type="button">
+    <button class="fab-opt is-a" id="fab-opt-progress" data-act="progress" type="button">
       <span class="fab-opt-icon">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor">
           <path d="M5 8h14a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-2a3 3 0 0 1 3-3zm0 2a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1z"/>
@@ -248,6 +228,15 @@
         </svg>
       </span>
       <span class="fab-opt-label">新增進度條</span>
+    </button>
+    <button class="fab-opt is-b" id="fab-opt-step" data-act="step" type="button">
+      <span class="fab-opt-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+             fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6.5l1.5 1.5L8 5.5M4 12.5l1.5 1.5L8 11.5M4 18.5l1.5 1.5L8 17.5M11 7h9M11 13h9M11 19h9"/>
+        </svg>
+      </span>
+      <span class="fab-opt-label">新增步驟</span>
     </button>
   </div>
 </div>
