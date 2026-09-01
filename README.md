@@ -255,7 +255,7 @@ v1（只有標題）的資料可以直接讀入與匯入，會自動補上：`no
 ## 測試
 
 ```bash
-node test/logic.test.js          # 純邏輯：日期、週期、連續期數、排序、軟刪除、匯入驗證、遷移、標籤與篩選、排序、搜尋、模塊（215 項）
+node test/logic.test.js          # 純邏輯：日期、週期、連續期數、排序、軟刪除、匯入驗證、遷移、標籤與篩選、排序、搜尋、模塊、進度連動（223 項）
 
 python3 test/serve.py            # 另開一個終端，掛在 /daily-todo/ 路徑
 cd test && npm i                 # 只裝 puppeteer-core，用系統的 google-chrome
