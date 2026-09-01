@@ -584,5 +584,32 @@ eq('normalizeState：v7 progress 轉模塊、modules 保序、一般任務丟進
    ns.tasks.map(function (t) { return t.modules.map(function (m) { return m.type; }); }), [['progress'], ['step', 'progress'], ['step'], []]);
 eq('normalizeState 後不再有 task.progress 欄位', ns.tasks.some(function (t) { return 'progress' in t; }), false);
 
+group('進度隨完成連動：完成 +step、取消 −step，夾在 0..target');
+setState([]);
+var bt = A.addTask('daily', { title: 'bp', modules: [{ type: 'progress', current: 3, target: 10, step: 2 }] });
+A.toggle(bt);
+eq('完成 → +step', A.taskProgress(bt).current, 5);
+A.toggle(bt);
+eq('取消完成 → −step', A.taskProgress(bt).current, 3);
+A.taskProgress(bt).current = 9;
+A.toggle(bt);
+eq('完成時夾在目標', A.taskProgress(bt).current, 10);
+A.toggle(bt);
+eq('取消時從夾值往回減（邊界不保證對稱，刻意取捨）', A.taskProgress(bt).current, 8);
+A.taskProgress(bt).current = 1;
+A.toggle(bt); A.toggle(bt);
+A.toggle(bt); A.toggle(bt);
+eq('非邊界來回切換不漂移', A.taskProgress(bt).current, 1);
+A.taskProgress(bt).current = 0;
+A.toggle(bt); A.toggle(bt);
+eq('取消時夾在 0', A.taskProgress(bt).current, 0);
+var bg = A.addTask('general', { title: 'bg', modules: [{ type: 'progress', current: 0, target: 3, step: 1 }] });
+eq('一般任務的進度條在 addTask 被丟掉（進度條為日常限定），toggle 不爆錯', (function () {
+  A.toggle(bg); return [A.taskProgress(bg), !!bg.completed_at];
+})(), [null, true]);
+var bn = A.addTask('daily', { title: 'bn' });
+A.toggle(bn);
+eq('沒有進度條的任務不受影響', A.taskProgress(bn), null);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

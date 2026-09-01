@@ -126,7 +126,17 @@
     return task.type === 'daily' ? A.isDoneToday(task) : !!task.completed_at;
   };
 
+  /* 進度條跟著完成連動：完成 +step（不超過目標）、取消完成 −step（不低於 0）。
+     邊界處會夾值，所以在邊界來回切換不保證完全對稱——這是刻意的取捨，
+     比起為了對稱另存一個「未夾值」欄位，夾值的行為更好預期。 */
+  A.bumpProgress = function (task, dir) {
+    var p = A.taskProgress(task);
+    if (!p) return;
+    p.current = Math.max(0, Math.min(p.target, p.current + dir * p.step));
+  };
+
   A.toggle = function (task) {
+    var wasDone = A.isDone(task);
     if (task.type === 'daily') {
       var d = A.currentPeriod(task) || A.logicalToday();
       var i = task.history.indexOf(d);
@@ -135,6 +145,7 @@
     } else {
       task.completed_at = task.completed_at ? null : A.nowIso();
     }
+    A.bumpProgress(task, wasDone ? -1 : 1);
   };
 
   /* ================= 連續期數 =================

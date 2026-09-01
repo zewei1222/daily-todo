@@ -1745,6 +1745,17 @@ group('R. Apple 式打磨：副標、復原、編輯橫幅、看得見的入口�
     const fill = row.querySelector('.card-progress-fill'), bar = row.querySelector('.card-progress-bar');
     return [fill.style.width, Math.round(bar.getBoundingClientRect().height), row.querySelector('.card-progress-text').textContent];
   }), ['75%', 4, '進度 3 / 4']);
+
+  /* R11 進度隨完成連動：完成 +step（夾在目標）、取消 −step */
+  const rowP = await page.evaluate(() => Array.from(document.querySelectorAll('#list-daily .row')).find(r => r.querySelector('.card-title').textContent === 'p').dataset.id);
+  await tapEl(page, `#list-daily .row[data-id="${rowP}"] .card-side`); await sleep(250);
+  eq('R11 完成 → 進度 +step 並夾在目標、卡片即時更新', await page.evaluate((id) => {
+    const t = App.findTask(id);
+    const row = document.querySelector(`#list-daily .row[data-id="${id}"]`);
+    return [App.taskProgress(t).current, row.querySelector('.card-progress-text').textContent, row.querySelector('.card-progress-fill').style.width];
+  }, rowP), [4, '進度 4 / 4', '100%']);
+  await tapEl(page, `#list-daily .row[data-id="${rowP}"] .card-side`); await sleep(250);
+  eq('R11 取消完成 → 進度 −step', await page.evaluate((id) => App.taskProgress(App.findTask(id)).current, rowP), [3][0]);
   await ctx.close();
 }
 
